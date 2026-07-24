@@ -36,6 +36,11 @@ web/
 │   │   │   ├── RecipeList.tsx
 │   │   │   ├── RecipeDetail.tsx
 │   │   │   └── RecipeBuilder.tsx
+│   │   ├── log/
+│   │   │   ├── LogView.tsx      # Daily log, grouped by meal, summary vs. goals
+│   │   │   └── AddLogEntry.tsx  # Add-entry flow (product / recipe+portion / manual)
+│   │   ├── goals/
+│   │   │   └── Goals.tsx        # View/edit the single active goal set
 │   │   └── scan/
 │   │       └── Scan.tsx         # File upload fallback (no native camera)
 │   ├── components/              # Shared UI components
@@ -75,3 +80,12 @@ web/
 4. Draft product card shown to user (editable)
 5. User can open AI chat to refine fields
 6. User confirms → product saved via the API
+
+## Log & Goals (Phase 5, planned)
+- **Goals page** — simple form to view/edit the single active goal set (calories, protein, fat, carbs); no goal calculator yet, values are entered manually
+- **Log page** — daily view grouped by meal (breakfast/lunch/dinner/snack), with a summary vs. active goals per macro
+- **Add-entry flow**, three source paths:
+  - Product — pick from library, enter grams consumed
+  - Recipe — pick a recipe + named portion (or custom grams); shows the recipe's ingredients with editable per-ingredient grams and live macro recalculation before save. This only overrides that one log entry, not the recipe itself.
+  - Manual — type calories/protein/fat/carbs directly, no product needed
+- The recipe-logging path depends on Phase 4 (recipes) being implemented on the backend first — the web app currently has no recipe screens built at all (`web/src` doesn't exist yet). Mirror whatever mobile lands on for this flow so the two clients don't diverge.
