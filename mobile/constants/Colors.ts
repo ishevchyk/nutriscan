@@ -1,5 +1,7 @@
 export interface ThemeColors {
   background: string;
+  pageBackground: string;
+  card: string;
   surface: string;
   border: string;
   primary: string;
@@ -15,6 +17,8 @@ export interface ThemeColors {
 export const Colors: { light: ThemeColors; dark: ThemeColors } = {
   light: {
     background: '#FAFAF8',
+    pageBackground: '#F2F2F2',
+    card: '#FAFAF9',
     surface: '#F1F0EC',
     border: '#E5E2DB',
     primary: '#C2703B',
@@ -28,6 +32,8 @@ export const Colors: { light: ThemeColors; dark: ThemeColors } = {
   },
   dark: {
     background: '#1B1714',
+    pageBackground: '#161616',
+    card: '#1F1E1C',
     surface: '#262019',
     border: '#3A332A',
     primary: '#D98A52',

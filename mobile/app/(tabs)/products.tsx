@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
 
 import { Spacing, ThemeColors, Typography } from '../../constants/theme';
 import { useThemeColor } from '../../hooks/useThemeColor';
@@ -12,6 +13,7 @@ export default function ProductsScreen() {
   const [initializing, setInitializing] = useState(true);
   const colors = useThemeColor();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const router = useRouter();
 
   useEffect(() => {
     if (userId) {
@@ -33,10 +35,12 @@ export default function ProductsScreen() {
         data={products}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <View style={styles.row}>
-            <Text style={styles.productName}>{item.name}</Text>
-            {item.brand && <Text style={styles.brand}>{item.brand}</Text>}
-          </View>
+          <Pressable onPress={() => router.push({ pathname: '/product/[id]', params: { id: item.id } })}>
+            <View style={styles.row}>
+              <Text style={styles.productName}>{item.name}</Text>
+              {item.brand && <Text style={styles.brand}>{item.brand}</Text>}
+            </View>
+          </Pressable>
         )}
       />
     </View>
