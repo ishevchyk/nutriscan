@@ -4,6 +4,7 @@ import { ProductFields } from "./product.base";
 export const ProductFormSchema = z.object({
     name: ProductFields.name,
     brand: ProductFields.brand.optional(),
+    barcode: ProductFields.barcode.optional(),
     calories: z.coerce.number().nonnegative("Must be 0 or more").nullable(),
     protein: z.coerce.number().nonnegative("Must be 0 or more").nullable(),
     fat: z.coerce.number().nonnegative("Must be 0 or more").nullable(),
@@ -11,6 +12,7 @@ export const ProductFormSchema = z.object({
     fiber: z.coerce.number().nonnegative("Must be 0 or more").nullable(),
     sugar: z.coerce.number().nonnegative("Must be 0 or more").nullable(),
     salt: z.coerce.number().nonnegative("Must be 0 or more").nullable(),
+    notes: ProductFields.notes.optional(),
 });
 
 export type ProductFormValues = z.infer<typeof ProductFormSchema>;

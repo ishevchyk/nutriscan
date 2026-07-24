@@ -2,7 +2,10 @@ import { Platform } from 'react-native';
 
 export const Typography = {
   fontFamily: {
-    mono: Platform.select({ ios: 'Courier', android: 'monospace', default: 'monospace' }),
+    mono: 'JetBrainsMono_400Regular',
+    monoMedium: 'JetBrainsMono_500Medium',
+    monoBold: 'JetBrainsMono_700Bold',
+    sans: Platform.select({ ios: 'System', android: 'Roboto', default: 'System' }),
   },
   fontSize: {
     xs: 12,
