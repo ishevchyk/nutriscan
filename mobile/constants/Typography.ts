@@ -8,6 +8,7 @@ export const Typography = {
     sans: Platform.select({ ios: 'System', android: 'Roboto', default: 'System' }),
   },
   fontSize: {
+    xxs: 10,
     xs: 12,
     sm: 13,
     base: 16,

@@ -3,6 +3,7 @@ import { Platform, StyleProp, StyleSheet, Text, TextInput, View, ViewStyle } fro
 
 import { Radii, Spacing, ThemeColors, Typography } from '../../constants/theme';
 import { useThemeColor } from '../../hooks/useThemeColor';
+import {formatValue} from "../../utils/formatUtils";
 
 type StatCardSize = 'lg' | 'sm';
 
@@ -15,10 +16,6 @@ type StatCardProps = {
   style?: StyleProp<ViewStyle>;
   testID?: string;
 };
-
-function formatValue(value: number | null): string {
-  return value == null ? '' : String(value);
-}
 
 export function StatCard({ label, unit, value, onChangeValue, size = 'lg', style, testID }: StatCardProps) {
   const colors = useThemeColor();
@@ -51,6 +48,8 @@ export function StatCard({ label, unit, value, onChangeValue, size = 'lg', style
             style={styles.value}
             value={text}
             onChangeText={handleChangeText}
+            placeholder="0"
+            placeholderTextColor={colors.placeholder}
             keyboardType={Platform.OS === 'ios' ? 'decimal-pad' : 'numeric'}
             testID={testID}
           />
