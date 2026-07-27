@@ -36,7 +36,7 @@ export default function RegisterScreen() {
       );
       await SecureStore.setItemAsync(SECURE_STORE_REFRESH_KEY, data.refresh_token);
       setTokens(data.access_token, data.refresh_token);
-      router.replace('/(tabs)');
+      router.replace('/(tabs)/products');
     } catch (err: any) {
       if (err.response?.status === 401) {
         setError('Invalid email or password.');

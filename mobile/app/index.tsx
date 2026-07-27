@@ -4,5 +4,5 @@ import { useAuthStore } from '../store/authStore';
 
 export default function Index() {
   const accessToken = useAuthStore((s) => s.accessToken);
-  return <Redirect href={accessToken ? '/(tabs)' : '/(auth)/login'} />;
+  return <Redirect href={accessToken ? '/(tabs)/products' : '/(auth)/login'} />;
 }
