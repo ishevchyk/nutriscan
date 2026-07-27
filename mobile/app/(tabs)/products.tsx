@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import {ActivityIndicator, FlatList, StyleSheet, Text, TextInput, View} from 'react-native';
 
 import { Spacing, ThemeColors, Typography } from '../../constants/theme';
 import { useThemeColor } from '../../hooks/useThemeColor';
 import { useAuthStore } from '../../store/authStore';
 import { useProductStore } from '../../store/productStore';
+import {ProductCard} from "../../components/products/ProductCard";
 
 export default function ProductsScreen() {
   const userId = useAuthStore((s) => s.userId);
@@ -13,7 +13,6 @@ export default function ProductsScreen() {
   const [initializing, setInitializing] = useState(true);
   const colors = useThemeColor();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const router = useRouter();
 
   useEffect(() => {
     if (userId) {
@@ -23,7 +22,7 @@ export default function ProductsScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.heading}>My Products</Text>
+      <TextInput placeholder="Search products..." style={styles.searchInput}/>
 
       {initializing && <ActivityIndicator size="large" color={colors.primary} />}
 
@@ -35,12 +34,7 @@ export default function ProductsScreen() {
         data={products}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <Pressable onPress={() => router.push({ pathname: '/product/[id]', params: { id: item.id } })}>
-            <View style={styles.row}>
-              <Text style={styles.productName}>{item.name}</Text>
-              {item.brand && <Text style={styles.brand}>{item.brand}</Text>}
-            </View>
-          </Pressable>
+            <ProductCard item={item} />
         )}
       />
     </View>
@@ -49,15 +43,22 @@ export default function ProductsScreen() {
 
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
-    container: { flex: 1, padding: Spacing.xl, backgroundColor: colors.background },
-    heading: { fontSize: Typography.fontSize.xl, fontWeight: Typography.fontWeight.bold, marginBottom: Spacing.lg, color: colors.text },
-    placeholder: { color: colors.textSecondary, textAlign: 'center', marginTop: 40 },
-    row: {
-      paddingVertical: Spacing.md,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
+    container: {flex: 1, padding: Spacing.xl, backgroundColor: colors.background},
+    heading: {
+      fontSize: Typography.fontSize.xl,
+      fontWeight: Typography.fontWeight.bold,
+      marginBottom: Spacing.lg,
+      color: colors.text
     },
-    productName: { fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.medium, color: colors.text },
-    brand: { fontSize: Typography.fontSize.sm, color: colors.textSecondary, marginTop: 2 },
+    placeholder: {color: colors.textSecondary, textAlign: 'center', marginTop: 40},
+    searchInput: {
+      height: 40,
+      borderColor: colors.border,
+      borderWidth: 1,
+      borderRadius: 8,
+      paddingHorizontal: 10,
+      marginBottom: Spacing.lg,
+      backgroundColor: colors.surface,
+    }
   });
 }
