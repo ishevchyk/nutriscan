@@ -39,7 +39,7 @@ export default function LoginScreen() {
       console.log('Login response:', data);
       await SecureStore.setItemAsync(SECURE_STORE_REFRESH_KEY, data.refresh_token);
       setTokens(data.access_token, data.refresh_token);
-      router.replace('/(tabs)');
+      router.replace('/(tabs)/products');
     } catch (err: any) {
       console.error('Login error:', err);
       if (err.response?.status === 401) {
