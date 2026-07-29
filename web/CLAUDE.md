@@ -1,7 +1,7 @@
 # NutriScan — Web
 
 ## Project spec
-See docs/nutriscan_project_spec.md for full project overview,
+See README.md for full project overview,
 database schema, API endpoints, and AI integration details.
 
 ## Stack

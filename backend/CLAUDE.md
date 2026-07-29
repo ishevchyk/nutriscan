@@ -2,32 +2,10 @@
 
 ## Stack
 - Python 3.11+
-- FastAPI
-- PostgreSQL
-- SQLAlchemy (async) + Alembic for migrations
-- PyJWT for auth
-- Anthropic Python SDK for AI endpoints
-
-## Project structure
-backend/
-├── app/
-│   ├── main.py          # FastAPI app entry point
-│   ├── config.py        # Settings from environment variables
-│   ├── database.py      # DB connection + session
-│   ├── models/          # SQLAlchemy models
-│   ├── schemas/         # Pydantic request/response schemas
-│   ├── routers/         # One file per domain (auth, products, recipes, ai)
-│   └── dependencies.py  # Shared deps (get_current_user, get_db)
-├── alembic/             # Migrations
-├── .env                 # Never commit this
-├── .env.example         # Commit this
-└── requirements.txt
 
 ## Rules
 - All secrets via environment variables — never hardcoded
 - All endpoints require JWT auth except /auth/register and /auth/login
-- Use async SQLAlchemy throughout
-- Pydantic v2 schemas for all request/response shapes
 - Soft deletes only — never hard delete products or recipes, **except** `log_entries`, `recipe_portions`, and `user_goals` (see Tracking & Goals below) — those are hard-deleted/overwritten
 
 ## Schema (current + planned)
