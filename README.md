@@ -38,7 +38,7 @@ NutriScan is a personal nutrition tracking app that lets users build a library o
 | Offline mode | **Not implemented** — app requires connectivity |
 | AI scanning | Claude API Vision + in-app AI chat editor |
 | Product groups | Yes — system categories + user-defined custom groups, many-to-many |
-| Deletion model | Soft delete — 30-day trash bin, then hard delete via background job |
+| Deletion model | Soft delete — 30-day recovery window (Recently Deleted), then hard delete via background job |
 | Social / sharing | TBD — personal-only for now, revisit later |
 | Calorie/macro goals | Single active goal set per user (calories, protein, fat, carbs), user-entered and editable at any time — no goal calculator yet, may add later |
 
@@ -207,7 +207,7 @@ notes         TEXT
 source        TEXT           -- 'manual' | 'ai_scan' | 'ai_chat'
 created_at    TIMESTAMPTZ DEFAULT now()
 updated_at    TIMESTAMPTZ DEFAULT now()
-deleted_at    TIMESTAMPTZ    -- soft delete, powers the trash bin
+deleted_at    TIMESTAMPTZ    -- soft delete, powers Recently Deleted
 ```
 
 ### groups
@@ -235,7 +235,7 @@ description     TEXT
 photo_url       TEXT
 created_at      TIMESTAMPTZ DEFAULT now()
 updated_at      TIMESTAMPTZ DEFAULT now()
-deleted_at      TIMESTAMPTZ    -- soft delete, powers the trash bin
+deleted_at      TIMESTAMPTZ    -- soft delete, powers Recently Deleted
 ```
 Note: the old single `portion_grams` field is replaced by `recipe_portions` below, which supports multiple named portions per recipe.
 
@@ -302,10 +302,10 @@ Only populated when `log_entries.source_type = 'recipe'`. This is a snapshot, no
 - `source_type = 'recipe'` → sum over `log_entry_recipe_ingredients`: `grams / 100 × each product's per-100g macros`
 - `source_type = 'manual'` → use `manual_*` fields directly
 
-### Soft deletes & trash bin
-- `DELETE` on a product or recipe never removes the row immediately — it sets `deleted_at` and the item moves to a trash view
+### Soft deletes & recovery
+- `DELETE` on a product or recipe never removes the row immediately — it sets `deleted_at` and the item moves to Recently Deleted
 - Deleted products remain resolvable by any recipe still referencing them, so existing recipes don't break
-- Users can browse `GET /products/trash` and restore anything within the 30-day window
+- Users can browse `GET /products/deleted` and restore anything within the 30-day window
 - A background job permanently removes rows where `deleted_at` is older than 30 days
 - Kept independent of offline sync — if offline access gets added later, this same `deleted_at` field is what would let deletions propagate between devices, so no schema change would be needed then
 
@@ -327,9 +327,9 @@ GET    /products             List user's products (optionally filter by ?group_i
 POST   /products             Create product
 GET    /products/:id         Get single product
 PATCH  /products/:id         Update product
-DELETE /products/:id         Soft delete (sets deleted_at, moves to trash)
-GET    /products/trash       List soft-deleted products (within 30-day window)
-POST   /products/:id/restore Restore a soft-deleted product out of trash
+DELETE /products/:id         Soft delete (sets deleted_at, recoverable for 30 days)
+GET    /products/deleted     List recently-deleted products (within 30-day window)
+POST   /products/:id/restore Restore a recently-deleted product
 ```
 
 ### Groups
@@ -348,8 +348,8 @@ GET    /recipes                    List user's recipes
 POST   /recipes                    Create recipe
 GET    /recipes/:id                Get recipe with ingredients + nutrition (per_meal, per_100g, portions[])
 PATCH  /recipes/:id                Update recipe
-DELETE /recipes/:id                Soft delete (sets deleted_at, moves to trash)
-POST   /recipes/:id/restore        Restore a soft-deleted recipe out of trash
+DELETE /recipes/:id                Soft delete (sets deleted_at, recoverable for 30 days)
+POST   /recipes/:id/restore        Restore a recently-deleted recipe
 
 GET    /recipes/:id/portions       List named portions for a recipe
 POST   /recipes/:id/portions       Create a named portion
@@ -459,14 +459,14 @@ On 401 response
 ## 10. Build Phases
 
 ### Phase 1 — Foundation
-- [ ] FastAPI project setup (folder structure, config, error handling)
-- [ ] PostgreSQL schema + Alembic migrations
-- [ ] Auth endpoints (register, login, refresh, logout)
-- [ ] Product CRUD endpoints (soft delete + restore)
-- [ ] Basic React Native screens: login, product list, product detail, add product form
-- [ ] Trash bin screen (view + restore soft-deleted products/recipes)
-- [ ] Background job: hard-delete rows with `deleted_at` older than 30 days
-- [ ] Zustand store wired to API
+- [x] FastAPI project setup (folder structure, config, error handling)
+- [x] PostgreSQL schema + Alembic migrations
+- [x] Auth endpoints (register, login, refresh, logout)
+- [x] Product CRUD endpoints (soft delete + restore)
+- [x] Basic React Native screens: login, product list, product detail, add product form
+- [x] Recently Deleted screen (view + restore soft-deleted products/recipes)
+- [x] Background job: hard-delete rows with `deleted_at` older than 30 days
+- [x] Zustand store wired to API
 
 ### Phase 2 — Product Groups
 - [ ] `groups` and `product_groups` tables + migrations
@@ -523,4 +523,4 @@ On 401 response
 
 ---
 
-*Last updated: July 2026. Update this file as decisions are made.*
+*Last updated: July 27, 2026. Update this file as decisions are made.*
