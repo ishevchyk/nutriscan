@@ -20,7 +20,11 @@ export interface Product {
   source: string | null;
   created_at: string;
   updated_at: string;
+  deleted_at: string | null;
 }
+
+// Must match backend/app/jobs.py RETENTION_DAYS
+export const DELETED_RETENTION_DAYS = 30;
 
 export type NewProduct = Pick<Product, 'name'> &
   Partial<
@@ -33,15 +37,21 @@ export type NewProduct = Pick<Product, 'name'> &
 interface ProductState {
   products: Product[];
   loaded: boolean;
+  deletedProducts: Product[];
+  deletedLoaded: boolean;
   loadProducts: () => Promise<void>;
   addProduct: (p: NewProduct) => Promise<void>;
   updateProduct: (id: string, patch: Partial<NewProduct>) => Promise<void>;
   removeProduct: (id: string) => Promise<void>;
+  loadDeletedProducts: () => Promise<void>;
+  restoreProduct: (id: string) => Promise<void>;
 }
 
 export const useProductStore = create<ProductState>((set, get) => ({
   products: [],
   loaded: false,
+  deletedProducts: [],
+  deletedLoaded: false,
 
   loadProducts: async () => {
     const { data } = await api.get<Product[]>('/products');
@@ -61,5 +71,18 @@ export const useProductStore = create<ProductState>((set, get) => ({
   removeProduct: async (id) => {
     await api.delete(`/products/${id}`);
     set({ products: get().products.filter((p) => p.id !== id) });
+  },
+
+  loadDeletedProducts: async () => {
+    const { data } = await api.get<Product[]>('/products/deleted');
+    set({ deletedProducts: data, deletedLoaded: true });
+  },
+
+  restoreProduct: async (id) => {
+    const { data } = await api.post<Product>(`/products/${id}/restore`);
+    set({
+      deletedProducts: get().deletedProducts.filter((p) => p.id !== id),
+      products: [data, ...get().products],
+    });
   },
 }));
