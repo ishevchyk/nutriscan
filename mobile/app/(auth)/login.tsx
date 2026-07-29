@@ -30,13 +30,11 @@ export default function LoginScreen() {
   async function handleSignIn() {
     setError(null);
     setLoading(true);
-    console.log('Signing in with email:', email);
     try {
       const { data } = await authApi.post<{ access_token: string; refresh_token: string }>(
         '/auth/login',
         { email, password }
       );
-      console.log('Login response:', data);
       await SecureStore.setItemAsync(SECURE_STORE_REFRESH_KEY, data.refresh_token);
       setTokens(data.access_token, data.refresh_token);
       router.replace('/(tabs)/products');
