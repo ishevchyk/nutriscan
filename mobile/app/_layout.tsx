@@ -51,6 +51,12 @@ export default function RootLayout() {
               title: 'Product',
             }}
         />
+        <Stack.Screen
+            name="recently-deleted"
+            options={{
+              headerShown: false,
+            }}
+        />
       </Stack>
     </SafeAreaProvider>
   );
