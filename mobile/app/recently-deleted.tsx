@@ -65,13 +65,6 @@ export default function RecentlyDeletedScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
-        <Text style={styles.title}>Recently deleted</Text>
-        <Pressable style={styles.backLink} onPress={() => router.back()}>
-          <Text style={styles.backLinkText}>← Products</Text>
-        </Pressable>
-      </View>
-
       <View style={styles.content}>
         <View style={styles.banner}>
           <View style={styles.bannerDot} />
@@ -102,24 +95,6 @@ export default function RecentlyDeletedScreen() {
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: Spacing.xl,
-      paddingBottom: Spacing.lg,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-    },
-    title: { fontSize: Typography.fontSize.xl, fontWeight: Typography.fontWeight.bold, color: colors.text },
-    backLink: {},
-    backLinkText: {
-      fontFamily: Typography.fontFamily.mono,
-      fontSize: Typography.fontSize.xs,
-      color: colors.textSecondary,
-      textTransform: 'uppercase',
-      letterSpacing: Typography.letterSpacing.label,
-    },
     content: { flex: 1, padding: Spacing.xl },
     banner: {
       flexDirection: 'row',
