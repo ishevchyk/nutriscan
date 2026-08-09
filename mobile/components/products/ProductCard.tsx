@@ -7,6 +7,7 @@ import {useRouter} from "expo-router";
 import {Product} from "../../store/productStore";
 import {formatMacro} from "../../utils/formatUtils";
 import {ProductCardBase} from "./ProductCardBase";
+import {GroupBadgeRow} from "./GroupBadgeRow";
 
 type ProductCardProps = {
     item: Product;
@@ -21,6 +22,7 @@ export const ProductCard = memo(function ProductCard({ item }: ProductCardProps)
             name={item.name}
             brand={item.brand}
             onPress={() => router.push({ pathname: '/product/[id]', params: { id: item.id } })}
+            badges={<GroupBadgeRow groups={item.groups} />}
             footer={
                 <View style={styles.unitsRow}>
                     <View style={styles.unit}>

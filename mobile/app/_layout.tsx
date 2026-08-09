@@ -71,6 +71,12 @@ export default function RootLayout() {
                         title: 'Recently deleted'
                     }}
                 />
+                <Stack.Screen
+                    name="groups"
+                    options={{
+                        title: 'Groups'
+                    }}
+                />
             </Stack>
         </SafeAreaProvider>
     );
