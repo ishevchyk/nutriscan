@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { api } from '../lib/api';
+import { Group } from './types';
 
 export interface Product {
   id: string;
@@ -21,6 +22,7 @@ export interface Product {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+  groups: Group[];
 }
 
 // Must match backend/app/jobs.py RETENTION_DAYS
@@ -30,7 +32,7 @@ export type NewProduct = Pick<Product, 'name'> &
   Partial<
     Omit<
       Product,
-      'id' | 'user_id' | 'name' | 'created_at' | 'updated_at'
+      'id' | 'user_id' | 'name' | 'created_at' | 'updated_at' | 'groups'
     >
   >;
 
@@ -39,12 +41,14 @@ interface ProductState {
   loaded: boolean;
   deletedProducts: Product[];
   deletedLoaded: boolean;
-  loadProducts: () => Promise<void>;
-  addProduct: (p: NewProduct) => Promise<void>;
+  loadProducts: (groupId?: string) => Promise<void>;
+  addProduct: (p: NewProduct) => Promise<Product>;
   updateProduct: (id: string, patch: Partial<NewProduct>) => Promise<void>;
   removeProduct: (id: string) => Promise<void>;
   loadDeletedProducts: () => Promise<void>;
   restoreProduct: (id: string) => Promise<void>;
+  assignProductToGroups: (productId: string, groupIds: string[]) => Promise<void>;
+  removeProductFromGroup: (productId: string, groupId: string) => Promise<void>;
 }
 
 export const useProductStore = create<ProductState>((set, get) => ({
@@ -53,14 +57,17 @@ export const useProductStore = create<ProductState>((set, get) => ({
   deletedProducts: [],
   deletedLoaded: false,
 
-  loadProducts: async () => {
-    const { data } = await api.get<Product[]>('/products');
+  loadProducts: async (groupId) => {
+    const { data } = await api.get<Product[]>('/products', {
+      params: groupId ? { group_id: groupId } : undefined,
+    });
     set({ products: data, loaded: true });
   },
 
   addProduct: async (fields) => {
     const { data } = await api.post<Product>('/products', fields);
     set({ products: [data, ...get().products] });
+    return data;
   },
 
   updateProduct: async (id, patch) => {
@@ -83,6 +90,22 @@ export const useProductStore = create<ProductState>((set, get) => ({
     set({
       deletedProducts: get().deletedProducts.filter((p) => p.id !== id),
       products: [data, ...get().products],
+    });
+  },
+
+  assignProductToGroups: async (productId, groupIds) => {
+    const { data } = await api.post<Group[]>(`/products/${productId}/groups`, { group_ids: groupIds });
+    set({
+      products: get().products.map((p) => (p.id === productId ? { ...p, groups: data } : p)),
+    });
+  },
+
+  removeProductFromGroup: async (productId, groupId) => {
+    await api.delete(`/products/${productId}/groups/${groupId}`);
+    set({
+      products: get().products.map((p) =>
+        p.id === productId ? { ...p, groups: p.groups.filter((g) => g.id !== groupId) } : p
+      ),
     });
   },
 }));
