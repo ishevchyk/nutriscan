@@ -11,10 +11,11 @@ type ProductCardBaseProps = {
     name: string;
     brand?: string | null;
     onPress?: () => void;
+    badges?: ReactNode;
     footer: ReactNode;
 };
 
-export const ProductCardBase = memo(function ProductCardBase({ name, brand, onPress, footer }: ProductCardBaseProps) {
+export const ProductCardBase = memo(function ProductCardBase({ name, brand, onPress, badges, footer }: ProductCardBaseProps) {
     const colors = useThemeColor();
     const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -23,6 +24,7 @@ export const ProductCardBase = memo(function ProductCardBase({ name, brand, onPr
             <View style={styles.label}>
                 <Text style={styles.labelName}>{name}</Text>
                 {brand ? <Text style={styles.labelBrand}>{brand}</Text> : null}
+                {badges}
             </View>
             {footer}
         </View>

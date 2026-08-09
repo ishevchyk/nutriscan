@@ -7,11 +7,14 @@ import { Spacing, ThemeColors, Typography } from '../../constants/theme';
 import { useThemeColor } from '../../hooks/useThemeColor';
 import { useAuthStore } from '../../store/authStore';
 import { useProductStore } from '../../store/productStore';
+import { useGroupStore } from '../../store/groupStore';
 import {ProductCard} from "../../components/products/ProductCard";
+import {GroupFilterChips} from "../../components/groups/GroupFilterChips";
 
 export default function ProductsScreen() {
   const userId = useAuthStore((s) => s.userId);
   const { products, loaded, loadProducts } = useProductStore();
+  const { groups, loaded: groupsLoaded, fetchGroups, activeGroupFilter, setActiveGroupFilter } = useGroupStore();
   const [initializing, setInitializing] = useState(true);
   const colors = useThemeColor();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -19,9 +22,15 @@ export default function ProductsScreen() {
 
   useEffect(() => {
     if (userId) {
+      fetchGroups();
       loadProducts().finally(() => setInitializing(false));
     }
   }, [userId]);
+
+  async function handleFilterSelect(groupId: string | null) {
+    setActiveGroupFilter(groupId);
+    await loadProducts(groupId ?? undefined);
+  }
 
   return (
     <View style={styles.container}>
@@ -34,6 +43,19 @@ export default function ProductsScreen() {
       </View>
 
       <TextInput placeholder="Search library..." style={styles.searchInput}/>
+
+      <View style={styles.groupsHeader}>
+        <Text style={styles.metaLabel}>Groups</Text>
+        <Pressable onPress={() => router.push('/groups')}>
+          <Text style={styles.manageLink}>Manage</Text>
+        </Pressable>
+      </View>
+      <GroupFilterChips
+        groups={groups}
+        loaded={groupsLoaded}
+        activeGroupFilter={activeGroupFilter}
+        onSelect={handleFilterSelect}
+      />
 
       {initializing && <ActivityIndicator size="large" color={colors.primary} />}
 
@@ -88,6 +110,19 @@ function createStyles(colors: ThemeColors) {
       paddingHorizontal: 10,
       marginBottom: Spacing.lg,
       backgroundColor: colors.surface,
-    }
+    },
+    groupsHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: Spacing.sm,
+    },
+    manageLink: {
+      fontFamily: Typography.fontFamily.mono,
+      fontSize: Typography.fontSize.xxs,
+      color: colors.primary,
+      textTransform: 'uppercase',
+      letterSpacing: Typography.letterSpacing.label,
+    },
   });
 }
