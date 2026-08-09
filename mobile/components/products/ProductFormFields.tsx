@@ -4,6 +4,8 @@ import { Control, Controller, FieldErrors, FieldPath } from 'react-hook-form';
 import { Spacing } from '../../constants/theme';
 import { ProductFormInput, ProductFormValues } from '../../hooks/useProductForm';
 import { SectionLabel, UnderlineField, StatGrid, StatCard, NotesField } from '../ui';
+import { GroupPicker } from '../groups/GroupPicker';
+import { Group } from '../../store/types';
 
 type FormControl = Control<ProductFormInput, any, ProductFormValues>;
 type TextFieldName = Extract<FieldPath<ProductFormInput>, 'name' | 'brand'>;
@@ -15,6 +17,9 @@ type StatFieldName = Extract<
 type ProductFormFieldsProps = {
     control: FormControl;
     errors: FieldErrors<ProductFormInput>;
+    groups: Group[];
+    selectedGroupIds: string[];
+    onToggleGroup: (groupId: string) => void;
 };
 
 function ControlledUnderlineField({
@@ -63,7 +68,7 @@ function ControlledStatCard({
     );
 }
 
-export function ProductFormFields({ control, errors }: ProductFormFieldsProps) {
+export function ProductFormFields({ control, errors, groups, selectedGroupIds, onToggleGroup }: ProductFormFieldsProps) {
     return (
         <>
             <SectionLabel>Identity</SectionLabel>
@@ -105,6 +110,9 @@ export function ProductFormFields({ control, errors }: ProductFormFieldsProps) {
                     <NotesField value={value ?? ''} onChangeText={onChange} onBlur={onBlur} />
                 )}
             />
+
+            <SectionLabel style={styles.sectionSpacing}>Groups</SectionLabel>
+            <GroupPicker groups={groups} selectedIds={selectedGroupIds} onToggle={onToggleGroup} />
         </>
     );
 }
