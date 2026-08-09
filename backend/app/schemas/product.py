@@ -3,6 +3,8 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
+from app.schemas.group import GroupOut
+
 
 class ProductCreate(BaseModel):
     name: str
@@ -58,5 +60,6 @@ class ProductOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     deleted_at: datetime | None
+    groups: list[GroupOut] = []
 
     model_config = {"from_attributes": True}
