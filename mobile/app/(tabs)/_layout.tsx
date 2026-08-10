@@ -13,29 +13,44 @@ export default function TabsLayout() {
             header: ({options}) => (
                 <ScreenHeader headerTitle={options.title ?? ''}/>
             ),
-            tabBarActiveTintColor: colors.primary, tabBarInactiveTintColor: colors.textSecondary
+            tabBarInactiveTintColor: colors.textSecondary,
+            tabBarActiveTintColor: colors.primary
         }
         }>
+            <Tabs.Screen name="tracker" options={{
+                title: 'Tracker',
+                tabBarIcon: ({focused}) => (
+                    <MaterialDesignIcons name={"alpha-t-circle-outline"} size={20} color={focused ? colors.primary : colors.surface}/>
+                ),
+            }}/>
             <Tabs.Screen name="products" options={{
                 header: () => (
                     <ScreenHeader
                         headerTitle="Products"
-                        rightAction={{ label: '+ ADD', onPress: () => router.push('/add-product') }}
+                        rightAction={{label: '+ ADD', onPress: () => router.push('/add-product')}}
                     />
                 ),
-                tabBarIcon: ({focused}) => <MaterialDesignIcons name={"barley"} size={20}
-                                                                color={focused ? colors.primary : colors.surface}/>,
+                tabBarIcon: ({focused}) => (
+                    <MaterialDesignIcons name={"barley"} size={20} color={focused ? colors.primary : colors.surface}/>
+                ),
             }}/>
             <Tabs.Screen name="recipes" options={{
                 header: () => (
                     <ScreenHeader
                         headerTitle="Recipes"
-                        rightAction={{ label: '+ ADD', onPress: () => router.push('/add-recipe') }}
+                        rightAction={{label: '+ ADD', onPress: () => router.push('/add-recipe')}}
                     />
                 ),
-                tabBarIcon: ({focused}) => <MaterialDesignIcons name={"bowl-mix"} size={20}
-                                                                color={focused ? colors.primary : colors.surface}/>,
-                tabBarActiveTintColor: colors.primary
+                tabBarIcon: ({focused}) => (
+                    <MaterialDesignIcons name={"bowl-mix"} size={20} color={focused ? colors.primary : colors.surface}/>
+                ),
+            }}/>
+
+            <Tabs.Screen name="settings" options={{
+                title: 'Settings',
+                tabBarIcon: ({focused}) => (
+                    <MaterialDesignIcons name={"account-cog"} size={20} color={focused ? colors.primary : colors.surface}/>
+                ),
             }}/>
         </Tabs>
     );
