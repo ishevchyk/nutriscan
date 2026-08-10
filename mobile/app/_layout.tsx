@@ -1,5 +1,5 @@
-import {useEffect, useMemo} from 'react';
-import {router, Stack} from 'expo-router';
+import {useEffect} from 'react';
+import {Stack} from 'expo-router';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
 import {

@@ -38,6 +38,7 @@ NutriScan is a personal nutrition tracking app that lets users build a library o
 | Offline mode | **Not implemented** — app requires connectivity |
 | AI scanning | Claude API Vision + in-app AI chat editor |
 | Product groups | Yes — system categories + user-defined custom groups, many-to-many |
+| System group visibility | Users can hide individual system groups from their own view (not delete — just hidden per-user) |
 | Deletion model | Soft delete — 30-day recovery window (Recently Deleted), then hard delete via background job |
 | Social / sharing | TBD — personal-only for now, revisit later |
 | Calorie/macro goals | Single active goal set per user (calories, protein, fat, carbs), user-entered and editable at any time — no goal calculator yet, may add later |
@@ -157,6 +158,7 @@ NutriScan is a personal nutrition tracking app that lets users build a library o
               │  /recipes          │
               │  /goals            │
               │  /log              │
+              │  /settings         │
               │  /ai/scan          │
               │  /ai/chat          │
               └─────────┬──────────┘
@@ -173,6 +175,8 @@ NutriScan is a personal nutrition tracking app that lets users build a library o
      │  RecipePortions │
      │  UserGoals  │
      │  LogEntries │
+     │  UserSettings │
+     │  UserHiddenGroups │
      └─────────────┘
 ```
 
@@ -225,6 +229,25 @@ product_id    UUID REFERENCES products(id)
 group_id      UUID REFERENCES groups(id)
 PRIMARY KEY (product_id, group_id)
 ```
+
+### user_hidden_groups
+```sql
+user_id     UUID REFERENCES users(id)
+group_id    UUID REFERENCES groups(id)   -- only ever references system groups (is_system = true)
+PRIMARY KEY (user_id, group_id)
+```
+Lets a user hide specific **system** groups from their own view (e.g. they never buy anything from "Dairy" and don't want it cluttering their chip row). The group itself is untouched — other users are unaffected, and it can be un-hidden any time. Custom groups don't need this table since the owning user can just delete their own custom group outright.
+
+### user_settings
+```sql
+user_id                 UUID PRIMARY KEY REFERENCES users(id)
+units                   TEXT DEFAULT 'metric'     -- 'metric' | 'imperial'
+timezone                TEXT DEFAULT 'UTC'         -- IANA tz name, used to compute day boundaries for /log grouping
+notifications_enabled   BOOLEAN DEFAULT true
+created_at              TIMESTAMPTZ DEFAULT now()
+updated_at              TIMESTAMPTZ DEFAULT now()
+```
+Note: no `notifications_enabled` delivery infra exists yet (no push service wired up) — this toggle ships as a stored preference regardless, so the UI and schema are ready whenever push is added (see Open Questions).
 
 ### recipes
 ```sql
@@ -376,6 +399,19 @@ DELETE /log/:id                Delete a log entry
 GET    /log/summary?date=      Daily totals (calories, protein, fat, carbs) vs. active goals
 ```
 
+### Settings
+```
+GET    /settings                    Get current user's settings (units, timezone, notifications)
+PATCH  /settings                    Update settings
+POST   /auth/change-password        Change password
+DELETE /auth/account                Delete account (see Open Questions re: soft vs. hard delete)
+
+GET    /groups/hidden               List system group ids hidden by current user
+POST   /groups/:id/hide             Hide a system group for current user (400 if not is_system)
+DELETE /groups/:id/hide             Un-hide it
+```
+Note: once this phase ships, `GET /groups` should exclude hidden system groups by default; add `?include_hidden=true` for the settings screen itself to manage the hide/show list.
+
 ### AI
 ```
 POST   /ai/scan              Send image → get draft product JSON back (including suggested group)
@@ -469,21 +505,14 @@ On 401 response
 - [x] Zustand store wired to API
 
 ### Phase 2 — Product Groups
-- [ ] `groups` and `product_groups` tables + migrations
-- [ ] Seed built-in system groups (Dairy, Fruits, Breakfast, Snacks, etc.)
-- [ ] Group CRUD endpoints (custom groups only)
-- [ ] Product ↔ group assignment endpoints
-- [ ] Product list UI: group badges + per-group filter view
-- [ ] Custom group management UI (create, rename, delete)
+- [x] `groups` and `product_groups` tables + migrations
+- [x] Seed built-in system groups (Dairy, Fruits, Breakfast, Snacks, etc.)
+- [x] Group CRUD endpoints (custom groups only)
+- [x] Product ↔ group assignment endpoints
+- [x] Product list UI: group badges + per-group filter view
+- [x] Custom group management UI (create, rename, delete)
 
-### Phase 3 — AI Scanning & Chat
-- [ ] Camera screen with capture flow
-- [ ] `POST /ai/scan` endpoint + Claude Vision integration (incl. suggested group)
-- [ ] Draft product card UI with group pre-selection
-- [ ] AI chat screen + `POST /ai/chat` endpoint
-- [ ] Diff confirmation UI before saving AI edits (fields + group changes)
-
-### Phase 4 — Recipes
+### Phase 3 — Recipes
 - [ ] Recipe CRUD endpoints
 - [ ] Recipe builder UI (select products, set grams)
 - [ ] Nutrition calculation logic (per whole meal + per 100g)
@@ -491,7 +520,7 @@ On 401 response
 - [ ] Recipe detail UI: per-100g, per-meal, and per-portion nutrition views + portion management
 - [ ] Recipe list + detail screens
 
-### Phase 5 — Tracking & Goals
+### Phase 4 — Tracking & Goals
 - [ ] `user_goals` table + `GET`/`PATCH /goals` endpoints
 - [ ] Goal setting UI (manual entry of calories/protein/fat/carbs)
 - [ ] `log_entries` + `log_entry_recipe_ingredients` tables + migrations
@@ -500,12 +529,29 @@ On 401 response
 - [ ] Recipe-logging flow: editable per-ingredient grams with live macro recalculation before saving
 - [ ] Daily summary UI: totals vs. goals per macro (progress bars/rings)
 
+### Phase 5 — User Settings
+- [ ] `user_settings` table + migration (units, timezone, notifications)
+- [ ] `user_hidden_groups` table + migration
+- [ ] `GET`/`PATCH /settings` endpoints
+- [ ] Change password + delete account endpoints
+- [ ] Hide/un-hide system group endpoints; update `GET /groups` to exclude hidden ones by default
+- [ ] Settings screen UI: units toggle, timezone, notification toggle
+- [ ] System group visibility management UI (show/hide list, separate from custom group management)
+- [ ] Account section UI: change password, delete account (with confirmation)
+
 ### Phase 6 — Web & Deploy
 - [ ] React web app (Vite) with shared API client
 - [ ] CI/CD pipeline (GitHub Actions)
 - [ ] Deploy backend (Railway / Render / Fly.io)
 - [ ] Deploy web app (Vercel / Netlify)
 - [ ] Environment config (dev / prod)
+
+### Phase 7 — AI Scanning & Chat
+- [ ] Camera screen with capture flow
+- [ ] `POST /ai/scan` endpoint + Claude Vision integration (incl. suggested group)
+- [ ] Draft product card UI with group pre-selection
+- [ ] AI chat screen + `POST /ai/chat` endpoint
+- [ ] Diff confirmation UI before saving AI edits (fields + group changes)
 
 ---
 
@@ -520,7 +566,9 @@ On 401 response
 | 5 | Should custom groups be shareable/reusable across users, or strictly private per user? | **Pending** |
 | 6 | Goal calculator (auto-compute calorie/macro goals from age, weight, activity level, target) | Planned for later — manual entry only for now |
 | 7 | Should `user_goals` keep a history (versioned by date) instead of a single overwritten row, so past days are checked against the goal active at the time? | **Pending** |
+| 8 | Delete account: hard-delete immediately, or route through the same 30-day recovery pattern as products/recipes? | **Pending** |
+| 9 | Notification settings: no push infra exists yet — is the toggle a stub for future use, or does Phase 5 need to build actual delivery? | Stub only for now — see Phase 5 |
 
 ---
 
-*Last updated: July 27, 2026. Update this file as decisions are made.*
+*Last updated: August 9, 2026. Update this file as decisions are made.*
