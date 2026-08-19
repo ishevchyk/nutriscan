@@ -13,8 +13,8 @@ Implemented: `users`, `products`, `refresh_tokens`.
 
 Not yet implemented (see README section 6 for full column definitions):
 - `groups`, `product_groups` — Phase 2
-- `recipes`, `recipe_ingredients` — Phase 4. `recipes.py` router is currently a stub.
-- `recipe_portions`, `user_goals`, `log_entries`, `log_entry_recipe_ingredients` — Phase 5 (Tracking & Goals)
+- `recipes`, `recipe_ingredients` — Phase 3. `recipes.py` router is currently a stub.
+- `recipe_portions`, `user_goals`, `log_entries`, `log_entry_recipe_ingredients` — Phase 4 (Tracking & Goals)
 
 **Note:** the tracker schema (README section 6) describes `recipe_portions` as replacing a `recipes.portion_grams` column via data migration. That column never existed in this codebase — Phase 4 (recipes) hasn't been built yet, so there's nothing to migrate. When recipes do land, `recipe_portions` should be created directly rather than backfilled.
 
