@@ -6,6 +6,7 @@ from sqlalchemy import delete
 
 from app.database import AsyncSessionLocal
 from app.models.product import Product
+from app.models.recipe import Recipe
 
 logger = logging.getLogger(__name__)
 
@@ -16,11 +17,19 @@ _PURGE_INTERVAL_SECONDS = 60 * 60
 async def purge_expired_soft_deletes() -> int:
     cutoff = datetime.now(timezone.utc) - timedelta(days=RETENTION_DAYS)
     async with AsyncSessionLocal() as db:
-        result = await db.execute(
+        products_result = await db.execute(
             delete(Product).where(Product.deleted_at.is_not(None), Product.deleted_at < cutoff)
         )
+        # Recipe purge cascades to its own recipe_ingredients/recipe_portions rows
+        # (ondelete="CASCADE"). A recipe_ingredients row still linked to a product
+        # purged in the statement above is left with product_id set to NULL
+        # (ondelete="SET NULL"), not deleted -- its name/macros/grams snapshot is
+        # preserved as-is.
+        recipes_result = await db.execute(
+            delete(Recipe).where(Recipe.deleted_at.is_not(None), Recipe.deleted_at < cutoff)
+        )
         await db.commit()
-        return result.rowcount or 0
+        return (products_result.rowcount or 0) + (recipes_result.rowcount or 0)
 
 
 async def run_purge_loop() -> None:
@@ -28,7 +37,11 @@ async def run_purge_loop() -> None:
         try:
             deleted = await purge_expired_soft_deletes()
             if deleted:
-                logger.info("Purged %d soft-deleted product(s) past the %d-day retention window", deleted, RETENTION_DAYS)
+                logger.info(
+                    "Purged %d soft-deleted row(s) (products + recipes) past the %d-day retention window",
+                    deleted,
+                    RETENTION_DAYS,
+                )
         except Exception:
             logger.exception("Soft-delete purge job failed")
         await asyncio.sleep(_PURGE_INTERVAL_SECONDS)
