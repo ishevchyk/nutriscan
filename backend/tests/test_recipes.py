@@ -103,6 +103,34 @@ async def test_unlinked_ingredient_missing_name_422(client, auth_headers):
     assert resp.status_code == 422
 
 
+async def test_create_recipe_defaults_to_one_serving(client, auth_headers):
+    resp = await client.post("/recipes", json={"name": "Default Servings"}, headers=auth_headers)
+    assert resp.status_code == 201
+    assert resp.json()["servings"] == 1
+
+
+async def test_create_recipe_with_explicit_servings(client, auth_headers):
+    resp = await client.post("/recipes", json={"name": "Family Meal", "servings": 4}, headers=auth_headers)
+    assert resp.status_code == 201
+    assert resp.json()["servings"] == 4
+
+
+async def test_patch_recipe_servings(client, auth_headers):
+    recipe = await _create_recipe(client, auth_headers, name="Resizable")
+    resp = await client.patch(f"/recipes/{recipe['id']}", json={"servings": 3}, headers=auth_headers)
+    assert resp.status_code == 200
+    assert resp.json()["servings"] == 3
+
+
+async def test_recipe_servings_below_one_422(client, auth_headers):
+    resp = await client.post("/recipes", json={"name": "Bad", "servings": 0}, headers=auth_headers)
+    assert resp.status_code == 422
+
+    recipe = await _create_recipe(client, auth_headers, name="Patch Bad")
+    patch_resp = await client.patch(f"/recipes/{recipe['id']}", json={"servings": 0}, headers=auth_headers)
+    assert patch_resp.status_code == 422
+
+
 async def test_list_recipes_light_shape(client, auth_headers):
     await _create_recipe(client, auth_headers, name="Recipe A")
     resp = await client.get("/recipes", headers=auth_headers)

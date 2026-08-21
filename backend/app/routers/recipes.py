@@ -177,7 +177,11 @@ async def create_recipe(
     current_user: User = Depends(get_current_user),
 ):
     recipe = Recipe(
-        name=body.name, description=body.description, photo_url=body.photo_url, user_id=current_user.id
+        name=body.name,
+        description=body.description,
+        photo_url=body.photo_url,
+        servings=body.servings,
+        user_id=current_user.id,
     )
     db.add(recipe)
     await db.flush()
