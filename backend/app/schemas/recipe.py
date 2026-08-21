@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, computed_field, field_validator, model_validator
+from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
 
 from app.schemas.recipe_portion import RecipePortionOut, _validate_positive_grams
 
@@ -85,6 +85,7 @@ class RecipeCreate(BaseModel):
     name: str
     description: str | None = None
     photo_url: str | None = None
+    servings: int = Field(default=1, ge=1)
     ingredients: list[RecipeIngredientIn] = []
 
 
@@ -92,6 +93,7 @@ class RecipeUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
     photo_url: str | None = None
+    servings: int | None = Field(default=None, ge=1)
     ingredients: list[RecipeIngredientIn] | None = None  # None = untouched; [] = clear all
 
 
@@ -128,6 +130,7 @@ class RecipeDetailOut(BaseModel):
     name: str
     description: str | None
     photo_url: str | None
+    servings: int
     created_at: datetime
     updated_at: datetime
     ingredients: list[RecipeIngredientOut]
