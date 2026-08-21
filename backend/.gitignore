@@ -16,3 +16,6 @@ venv/
 # editor / OS
 .idea/
 .DS_Store
+
+# local product add
+/scripts/add_product
