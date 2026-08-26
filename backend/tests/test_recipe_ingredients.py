@@ -28,7 +28,7 @@ async def test_relink_ingredient_resyncs_snapshot_from_new_product(client, auth_
     old_product = await _create_product(client, auth_headers, name="Old Butter", calories=717)
     new_product = await _create_product(client, auth_headers, name="89% Butter", brand="Dairy Co", calories=800)
     recipe = await _create_recipe(
-        client, auth_headers, ingredients=[{"product_id": old_product["id"], "grams": 20}]
+        client, auth_headers, ingredients=[{"product_id": old_product["id"], "input_amount": 20}]
     )
     ingredient_id = recipe["ingredients"][0]["id"]
 
@@ -49,7 +49,7 @@ async def test_relink_ingredient_resyncs_snapshot_from_new_product(client, auth_
 
 async def test_relink_ignores_manual_fields_sent_alongside_product_id(client, auth_headers):
     product = await _create_product(client, auth_headers, name="Real Product", calories=500)
-    recipe = await _create_recipe(client, auth_headers, ingredients=[{"name": "Placeholder", "grams": 30, "calories": 1}])
+    recipe = await _create_recipe(client, auth_headers, ingredients=[{"name": "Placeholder", "input_amount": 30, "calories": 1}])
     ingredient_id = recipe["ingredients"][0]["id"]
 
     resp = await client.patch(
@@ -65,7 +65,7 @@ async def test_relink_ignores_manual_fields_sent_alongside_product_id(client, au
 
 async def test_unlink_preserves_snapshot(client, auth_headers):
     product = await _create_product(client, auth_headers, name="Cottage Cheese A", calories=98)
-    recipe = await _create_recipe(client, auth_headers, ingredients=[{"product_id": product["id"], "grams": 150}])
+    recipe = await _create_recipe(client, auth_headers, ingredients=[{"product_id": product["id"], "input_amount": 150}])
     ingredient_id = recipe["ingredients"][0]["id"]
 
     resp = await client.patch(
@@ -84,7 +84,7 @@ async def test_unlink_preserves_snapshot(client, auth_headers):
 
 async def test_manual_edit_without_product_id_key_leaves_link_untouched(client, auth_headers):
     product = await _create_product(client, auth_headers, name="Linked Product", calories=200)
-    recipe = await _create_recipe(client, auth_headers, ingredients=[{"product_id": product["id"], "grams": 100}])
+    recipe = await _create_recipe(client, auth_headers, ingredients=[{"product_id": product["id"], "input_amount": 100}])
     ingredient_id = recipe["ingredients"][0]["id"]
 
     resp = await client.patch(
@@ -101,7 +101,7 @@ async def test_manual_edit_without_product_id_key_leaves_link_untouched(client, 
 
 
 async def test_edit_grams_zero_or_negative_422(client, auth_headers):
-    recipe = await _create_recipe(client, auth_headers, ingredients=[{"name": "Whatever", "grams": 10}])
+    recipe = await _create_recipe(client, auth_headers, ingredients=[{"name": "Whatever", "input_amount": 10}])
     ingredient_id = recipe["ingredients"][0]["id"]
 
     resp = await client.patch(
@@ -113,7 +113,7 @@ async def test_edit_grams_zero_or_negative_422(client, auth_headers):
 
 
 async def test_ingredient_ownership_404(client, auth_headers, second_user_headers):
-    recipe = await _create_recipe(client, second_user_headers, ingredients=[{"name": "Not Yours", "grams": 10}])
+    recipe = await _create_recipe(client, second_user_headers, ingredients=[{"name": "Not Yours", "input_amount": 10}])
     ingredient_id = recipe["ingredients"][0]["id"]
 
     resp = await client.patch(
@@ -125,7 +125,7 @@ async def test_ingredient_ownership_404(client, auth_headers, second_user_header
 
 
 async def test_relink_to_invalid_product_400(client, auth_headers):
-    recipe = await _create_recipe(client, auth_headers, ingredients=[{"name": "Whatever", "grams": 10}])
+    recipe = await _create_recipe(client, auth_headers, ingredients=[{"name": "Whatever", "input_amount": 10}])
     ingredient_id = recipe["ingredients"][0]["id"]
 
     resp = await client.patch(
@@ -137,7 +137,7 @@ async def test_relink_to_invalid_product_400(client, auth_headers):
 
 
 async def test_edit_reflected_in_recipe_nutrition_on_next_read(client, auth_headers):
-    recipe = await _create_recipe(client, auth_headers, ingredients=[{"name": "Adjustable", "grams": 100, "calories": 50}])
+    recipe = await _create_recipe(client, auth_headers, ingredients=[{"name": "Adjustable", "input_amount": 100, "calories": 50}])
     ingredient_id = recipe["ingredients"][0]["id"]
     assert recipe["nutrition"]["per_meal"]["calories"] == 50
 
