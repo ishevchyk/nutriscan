@@ -1,18 +1,18 @@
 from typing import Sequence
 
-from app.models.recipe_ingredient import RecipeIngredient
-from app.models.recipe_portion import RecipePortion
+from app.models.meal_ingredient import MealIngredient
+from app.models.meal_portion import MealPortion
 
 MACROS = ("calories", "protein", "fat", "carbs", "fiber", "sugar", "salt")
 
 
-def calculate_recipe_nutrition(
-    ingredients: Sequence[RecipeIngredient],
-    portions: Sequence[RecipePortion],
+def calculate_meal_nutrition(
+    ingredients: Sequence[MealIngredient],
+    portions: Sequence[MealPortion],
 ) -> dict:
     """Per-meal (sum, no normalization), per-100g (sum then normalized by total
     grams), and per-portion (per-100g x portion.grams / 100) nutrition for a
-    recipe. Reads macros directly off each ingredient's own snapshot fields --
+    meal. Reads macros directly off each ingredient's own snapshot fields --
     no Product lookup involved, so this works identically for linked and
     unlinked ingredients, and is unaffected by a linked product later being
     edited, soft-deleted, or purged.

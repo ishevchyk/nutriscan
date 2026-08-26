@@ -5,14 +5,14 @@ import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-
 
 import { Radii, Spacing, ThemeColors, Typography } from '../../constants/theme';
 import { useThemeColor } from '../../hooks/useThemeColor';
-import { RecipeSummary } from '../../store/recipeStore';
+import { MealSummary } from '../../store/mealStore';
 import { ProductCardBase } from '../products/ProductCardBase';
 
-type RecipeCardProps = {
-  item: RecipeSummary;
+type MealCardProps = {
+  item: MealSummary;
 };
 
-export const RecipeCard = memo(function RecipeCard({ item }: RecipeCardProps) {
+export const MealCard = memo(function MealCard({ item }: MealCardProps) {
   const colors = useThemeColor();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
@@ -20,7 +20,7 @@ export const RecipeCard = memo(function RecipeCard({ item }: RecipeCardProps) {
   return (
     <ProductCardBase
       name={item.name}
-      onPress={() => router.push({ pathname: '/recipe/[id]', params: { id: item.id } })}
+      onPress={() => router.push({ pathname: '/meal/[id]', params: { id: item.id } })}
       footer={
         <View style={styles.footer}>
           {item.photo_url ? (

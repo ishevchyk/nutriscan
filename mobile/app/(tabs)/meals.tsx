@@ -6,12 +6,12 @@ import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-
 import { Spacing, ThemeColors, Typography } from '../../constants/theme';
 import { useThemeColor } from '../../hooks/useThemeColor';
 import { useAuthStore } from '../../store/authStore';
-import { useRecipeStore } from '../../store/recipeStore';
-import { RecipeCard } from '../../components/recipes/RecipeCard';
+import { useMealStore } from '../../store/mealStore';
+import { MealCard } from '../../components/meals/MealCard';
 
-export default function RecipesScreen() {
+export default function MealsScreen() {
   const userId = useAuthStore((s) => s.userId);
-  const { recipes, loaded, loadRecipes } = useRecipeStore();
+  const { meals, loaded, loadMeals } = useMealStore();
   const [initializing, setInitializing] = useState(true);
   const colors = useThemeColor();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -19,32 +19,32 @@ export default function RecipesScreen() {
 
   useEffect(() => {
     if (userId) {
-      loadRecipes().finally(() => setInitializing(false));
+      loadMeals().finally(() => setInitializing(false));
     }
   }, [userId]);
 
   return (
     <View style={styles.container}>
       <View style={styles.metaRow}>
-        <Text style={styles.metaLabel}>{recipes.length} recipes</Text>
+        <Text style={styles.metaLabel}>{meals.length} meals</Text>
         <Pressable style={styles.recentlyDeleted} onPress={() => router.push('/recently-deleted')}>
           <MaterialDesignIcons name="archive-outline" size={14} color={colors.textSecondary} />
           <Text style={styles.metaLabel}>Recently deleted</Text>
         </Pressable>
       </View>
 
-      <TextInput placeholder="Search recipes..." style={styles.searchInput} />
+      <TextInput placeholder="Search meals..." style={styles.searchInput} />
 
       {initializing && <ActivityIndicator size="large" color={colors.primary} />}
 
-      {loaded && recipes.length === 0 && (
-        <Text style={styles.placeholder}>Your recipes will appear here.</Text>
+      {loaded && meals.length === 0 && (
+        <Text style={styles.placeholder}>Your meals will appear here.</Text>
       )}
 
       <FlatList
-        data={recipes}
+        data={meals}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <RecipeCard item={item} />}
+        renderItem={({ item }) => <MealCard item={item} />}
       />
     </View>
   );

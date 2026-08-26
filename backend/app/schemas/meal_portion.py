@@ -9,7 +9,7 @@ def _validate_positive_grams(v: float) -> float:
     return v
 
 
-class RecipePortionCreate(BaseModel):
+class MealPortionCreate(BaseModel):
     name: str
     grams: float
     is_default: bool = False
@@ -20,7 +20,7 @@ class RecipePortionCreate(BaseModel):
         return _validate_positive_grams(v)
 
 
-class RecipePortionUpdate(BaseModel):
+class MealPortionUpdate(BaseModel):
     name: str | None = None
     grams: float | None = None
     is_default: bool | None = None
@@ -31,7 +31,7 @@ class RecipePortionUpdate(BaseModel):
         return v if v is None else _validate_positive_grams(v)
 
 
-class RecipePortionOut(BaseModel):
+class MealPortionOut(BaseModel):
     id: uuid.UUID
     name: str
     grams: float
