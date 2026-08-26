@@ -3,13 +3,13 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Radii, Spacing, ThemeColors, Typography } from '../../constants/theme';
 import { useThemeColor } from '../../hooks/useThemeColor';
-import { NewPortion, PortionPatch, RecipePortion } from '../../store/recipeStore';
+import { NewPortion, PortionPatch, MealPortion } from '../../store/mealStore';
 import { SectionLabel, StatCard } from '../ui';
 import {QuantityInput} from "./QuantityInput";
 import {GRAM_ONLY_UNITS} from "../../constants/units";
 
 type PortionListProps = {
-  portions: RecipePortion[];
+  portions: MealPortion[];
   onAdd: (input: NewPortion) => void;
   onUpdate: (portionId: string, patch: PortionPatch) => void;
   onRemove: (portionId: string) => void;
@@ -35,7 +35,7 @@ function PortionRow({
   onUpdate,
   onRemove,
 }: {
-  portion: RecipePortion;
+  portion: MealPortion;
   onUpdate: (portionId: string, patch: PortionPatch) => void;
   onRemove: (portionId: string) => void;
 }) {

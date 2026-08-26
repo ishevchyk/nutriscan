@@ -7,33 +7,33 @@ import { Radii, Spacing, ThemeColors, Typography } from '../../constants/theme';
 import { GRAM_ONLY_UNITS, GRAM_UNIT, ALL_UNITS } from '../../constants/units';
 import { useThemeColor } from '../../hooks/useThemeColor';
 import { usePickProduct } from '../../hooks/usePickProduct';
-import { useAddProductForRecipe } from '../../hooks/useAddProductForRecipe';
-import { useRecipeForm, RecipeFormValues } from '../../hooks/useRecipeForm';
+import { useAddProductForMeal } from '../../hooks/useAddProductForMeal';
+import { useMealForm, MealFormValues } from '../../hooks/useMealForm';
 import { useUnitConversionGuard } from '../../hooks/useUnitConversionGuard';
-import { useRecipeStore } from '../../store/recipeStore';
+import { useMealStore } from '../../store/mealStore';
 import { afterSheetClose } from '../../utils/afterSheetClose';
-import { NutritionSummaryCard } from '../../components/recipes/NutritionSummaryCard';
-import { IngredientCard } from '../../components/recipes/IngredientCard';
-import { IngredientManageSheet } from '../../components/recipes/IngredientManageSheet';
-import { AddIngredientSheet } from '../../components/recipes/AddIngredientSheet';
-import { AddToTrackerSheet } from '../../components/recipes/AddToTrackerSheet';
-import { MissingConversionSheet } from '../../components/recipes/MissingConversionSheet';
-import { PortionList } from '../../components/recipes/PortionList';
-import { toIngredientVM } from '../../components/recipes/types';
+import { NutritionSummaryCard } from '../../components/meals/NutritionSummaryCard';
+import { IngredientCard } from '../../components/meals/IngredientCard';
+import { IngredientManageSheet } from '../../components/meals/IngredientManageSheet';
+import { AddIngredientSheet } from '../../components/meals/AddIngredientSheet';
+import { AddToTrackerSheet } from '../../components/meals/AddToTrackerSheet';
+import { MissingConversionSheet } from '../../components/meals/MissingConversionSheet';
+import { PortionList } from '../../components/meals/PortionList';
+import { toIngredientVM } from '../../components/meals/types';
 import { CollapsibleSection, RichEditorField, RichTextView, SectionLabel, Stepper, UnderlineField } from '../../components/ui';
 
 const DEFAULT_INGREDIENT_AMOUNT = 100;
 
-export default function RecipeDetail() {
+export default function MealDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const {
     selected,
     selectedLoading,
     selectedError,
-    fetchRecipe,
-    updateRecipe,
-    removeRecipe,
+    fetchMeal,
+    updateMeal,
+    removeMeal,
     addIngredient,
     removeIngredient,
     relinkIngredient,
@@ -43,11 +43,11 @@ export default function RecipeDetail() {
     addPortion,
     updatePortion,
     removePortion,
-  } = useRecipeStore();
+  } = useMealStore();
   const colors = useThemeColor();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { pick } = usePickProduct();
-  const { addProductForRecipe } = useAddProductForRecipe();
+  const { addProductForMeal } = useAddProductForMeal();
   const guard = useUnitConversionGuard();
 
   const [mode, setMode] = useState<'view' | 'edit'>('view');
@@ -58,39 +58,39 @@ export default function RecipeDetail() {
 
   useEffect(() => {
     if (id) {
-      fetchRecipe(id);
+      fetchMeal(id);
     }
   }, [id]);
 
-  const recipe = selected?.id === id ? selected : null;
+  const meal = selected?.id === id ? selected : null;
 
-  const { control, handleSubmit, watch, formState: { errors } } = useRecipeForm(recipe ?? undefined);
-  const watchedServings = watch('servings') ?? recipe?.servings ?? 1;
+  const { control, handleSubmit, watch, formState: { errors } } = useMealForm(meal ?? undefined);
+  const watchedServings = watch('servings') ?? meal?.servings ?? 1;
 
-  const ingredients = useMemo(() => (recipe?.ingredients ?? []).map(toIngredientVM), [recipe?.ingredients]);
+  const ingredients = useMemo(() => (meal?.ingredients ?? []).map(toIngredientVM), [meal?.ingredients]);
   const managedIngredient = ingredients.find((i) => i.key === managedKey) ?? null;
   const totalGrams = ingredients.reduce((sum, i) => sum + i.grams, 0);
   const linkedCount = ingredients.filter((i) => i.is_linked).length;
   const manualCount = ingredients.length - linkedCount;
 
-  async function onSubmit(data: RecipeFormValues) {
+  async function onSubmit(data: MealFormValues) {
     if (!id) return;
-    await updateRecipe(id, data);
+    await updateMeal(id, data);
     setMode('view');
   }
 
   function onDelete() {
     if (!id) return;
     Alert.alert(
-      `Delete "${recipe?.name}"?`,
-      'This recipe and its ingredients/portions will be moved to Recently Deleted.',
+      `Delete "${meal?.name}"?`,
+      'This meal and its ingredients/portions will be moved to Recently Deleted.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
-            await removeRecipe(id);
+            await removeMeal(id);
             router.back();
           },
         },
@@ -102,11 +102,11 @@ export default function RecipeDetail() {
     setBusyKey(ingredient.key);
     try {
       if (!ingredient.product_id || unit === GRAM_UNIT) {
-        await updateIngredientValues(recipe!.id, ingredient.key, { input_amount: amount, input_unit: unit });
+        await updateIngredientValues(meal!.id, ingredient.key, { input_amount: amount, input_unit: unit });
         return;
       }
       await guard.runGuarded(
-        () => updateIngredientValues(recipe!.id, ingredient.key, { input_amount: amount, input_unit: unit }),
+        () => updateIngredientValues(meal!.id, ingredient.key, { input_amount: amount, input_unit: unit }),
         { productId: ingredient.product_id, productName: ingredient.name, unit }
       );
     } finally {
@@ -129,7 +129,7 @@ export default function RecipeDetail() {
     if (!id) return;
     setAddSheetOpen(false);
     afterSheetClose(async () => {
-      const result = await addProductForRecipe();
+      const result = await addProductForMeal();
       if (!result) return;
       if (result.kind === 'library') {
         await addIngredient(id, {
@@ -156,16 +156,16 @@ export default function RecipeDetail() {
     });
   }
 
-  if (selectedLoading && !recipe) {
+  if (selectedLoading && !meal) {
     return <ActivityIndicator size="large" color={colors.primary} style={styles.spinner} />;
   }
 
-  if (selectedError && !recipe) {
+  if (selectedError && !meal) {
     return <Text style={styles.notFound}>{selectedError}</Text>;
   }
 
-  if (!recipe) {
-    return <Text style={styles.notFound}>Recipe not found.</Text>;
+  if (!meal) {
+    return <Text style={styles.notFound}>Meal not found.</Text>;
   }
 
   const isEditing = mode === 'edit';
@@ -182,7 +182,7 @@ export default function RecipeDetail() {
                 name="name"
                 render={({ field: { onChange, onBlur, value } }) => (
                   <UnderlineField
-                    label="Recipe name"
+                    label="Meal name"
                     value={value ?? ''}
                     onChangeText={onChange}
                     onBlur={onBlur}
@@ -197,7 +197,7 @@ export default function RecipeDetail() {
           </View>
         ) : (
           <View style={styles.titleRow}>
-            <Text style={styles.title}>{recipe.name}</Text>
+            <Text style={styles.title}>{meal.name}</Text>
             <Pressable style={styles.modeButton} onPress={() => setMode('edit')}>
               <Text style={styles.modeButtonText}>Edit</Text>
             </Pressable>
@@ -206,14 +206,14 @@ export default function RecipeDetail() {
 
         {!isEditing && (
           <Text style={styles.metaLine}>
-            {ingredients.length} ingredient{ingredients.length === 1 ? '' : 's'} · {recipe.servings} serving
-            {recipe.servings === 1 ? '' : 's'}
+            {ingredients.length} ingredient{ingredients.length === 1 ? '' : 's'} · {meal.servings} serving
+            {meal.servings === 1 ? '' : 's'}
           </Text>
         )}
 
-        {/* Recipe steps */}
+        {/* Meal steps */}
         {isEditing ? (
-          <CollapsibleSection label="Recipe steps" sublabel="Preparation notes shown on the recipe" style={styles.blockSpacing}>
+          <CollapsibleSection label="Meal steps" sublabel="Preparation notes shown on the meal" style={styles.blockSpacing}>
             <Controller
               control={control}
               name="description"
@@ -222,14 +222,14 @@ export default function RecipeDetail() {
                   value={value ?? ''}
                   onChangeText={onChange}
                   onBlur={onBlur}
-                  placeholder="What this recipe is, prep steps, etc."
+                  placeholder="What this meal is, prep steps, etc."
                 />
               )}
             />
           </CollapsibleSection>
-        ) : recipe.description ? (
-          <CollapsibleSection label="Recipe steps" style={styles.blockSpacing}>
-            <RichTextView html={recipe.description} />
+        ) : meal.description ? (
+          <CollapsibleSection label="Meal steps" style={styles.blockSpacing}>
+            <RichTextView html={meal.description} />
           </CollapsibleSection>
         ) : null}
 
@@ -246,9 +246,9 @@ export default function RecipeDetail() {
 
         {/* Nutrition */}
         <NutritionSummaryCard
-          perMeal={recipe.nutrition.per_meal}
-          per100g={recipe.nutrition.per_100g}
-          servings={isEditing ? watchedServings : recipe.servings}
+          perMeal={meal.nutrition.per_meal}
+          per100g={meal.nutrition.per_100g}
+          servings={isEditing ? watchedServings : meal.servings}
           totalGrams={totalGrams}
           manualCount={manualCount}
         />
@@ -295,14 +295,14 @@ export default function RecipeDetail() {
         {isEditing && (
           <>
             <PortionList
-              portions={recipe.portions}
-              onAdd={(input) => addPortion(recipe.id, input)}
-              onUpdate={(portionId, patch) => updatePortion(recipe.id, portionId, patch)}
-              onRemove={(portionId) => removePortion(recipe.id, portionId)}
+              portions={meal.portions}
+              onAdd={(input) => addPortion(meal.id, input)}
+              onUpdate={(portionId, patch) => updatePortion(meal.id, portionId, patch)}
+              onRemove={(portionId) => removePortion(meal.id, portionId)}
             />
 
             <Pressable style={styles.deleteButton} onPress={onDelete}>
-              <Text style={styles.deleteButtonText}>Delete Recipe</Text>
+              <Text style={styles.deleteButtonText}>Delete Meal</Text>
             </Pressable>
           </>
         )}
@@ -324,7 +324,7 @@ export default function RecipeDetail() {
             if (product) {
               // Force the unit back to grams on swap -- a household unit's
               // grams-per-unit is product-specific, so it can't carry over.
-              await relinkIngredient(recipe.id, ing.key, product.id, { input_amount: ing.grams, input_unit: GRAM_UNIT });
+              await relinkIngredient(meal.id, ing.key, product.id, { input_amount: ing.grams, input_unit: GRAM_UNIT });
             }
           });
         }}
@@ -333,7 +333,7 @@ export default function RecipeDetail() {
           if (!managedIngredient) return;
           const ingredientKey = managedIngredient.key;
           const productId = managedIngredient.product_id;
-          const commit = () => updateIngredientValues(recipe.id, ingredientKey, values);
+          const commit = () => updateIngredientValues(meal.id, ingredientKey, values);
           // Keep the sheet open (its Save button shows a spinner) for the
           // duration of the network round-trip -- there's nothing to see
           // happen until this settles, so closing early just looks frozen.
@@ -348,18 +348,18 @@ export default function RecipeDetail() {
         }}
         onUnlink={async () => {
           if (!managedIngredient) return;
-          await unlinkIngredient(recipe.id, managedIngredient.key);
+          await unlinkIngredient(meal.id, managedIngredient.key);
           setManagedKey(null);
         }}
         onAddToLibrary={async () => {
           if (!managedIngredient) return;
-          await addIngredientToLibrary(recipe.id, managedIngredient.key);
+          await addIngredientToLibrary(meal.id, managedIngredient.key);
           setManagedKey(null);
         }}
         onRemove={async () => {
           if (!managedIngredient) return;
           setManagedKey(null);
-          await removeIngredient(recipe.id, managedIngredient.key);
+          await removeIngredient(meal.id, managedIngredient.key);
         }}
       />
 
@@ -373,10 +373,10 @@ export default function RecipeDetail() {
       <AddToTrackerSheet
         visible={trackerSheetOpen}
         onClose={() => setTrackerSheetOpen(false)}
-        recipeName={recipe.name}
-        servings={recipe.servings}
+        mealName={meal.name}
+        servings={meal.servings}
         ingredients={ingredients}
-        portions={recipe.portions}
+        portions={meal.portions}
       />
 
       <MissingConversionSheet

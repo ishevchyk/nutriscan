@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Radii, Spacing, ThemeColors, Typography } from '../../constants/theme';
 import { useThemeColor } from '../../hooks/useThemeColor';
-import { NutritionOut } from '../../store/recipeStore';
+import { NutritionOut } from '../../store/mealStore';
 import { perPortion } from '../../utils/nutritionUtils';
 import { SegmentedTabs } from '../ui';
 

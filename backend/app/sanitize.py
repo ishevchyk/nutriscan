@@ -1,4 +1,4 @@
-"""Sanitization for rich-text HTML fields (product notes, recipe description).
+"""Sanitization for rich-text HTML fields (product notes, meal description).
 
 The mobile app's rich editor submits HTML. Cleaning it on write with a tag
 allowlist keeps stored markup limited to what the editor can produce, so any

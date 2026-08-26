@@ -32,13 +32,13 @@ web/
 │   │   │   ├── ProductList.tsx
 │   │   │   ├── ProductDetail.tsx
 │   │   │   └── AddProduct.tsx
-│   │   ├── recipes/
-│   │   │   ├── RecipeList.tsx
-│   │   │   ├── RecipeDetail.tsx
-│   │   │   └── RecipeBuilder.tsx
+│   │   ├── meals/
+│   │   │   ├── MealList.tsx
+│   │   │   ├── MealDetail.tsx
+│   │   │   └── MealBuilder.tsx
 │   │   ├── log/
-│   │   │   ├── LogView.tsx      # Daily log, grouped by meal, summary vs. goals
-│   │   │   └── AddLogEntry.tsx  # Add-entry flow (product / recipe+portion / manual)
+│   │   │   ├── LogView.tsx      # Daily log, grouped by meal slot, summary vs. goals
+│   │   │   └── AddLogEntry.tsx  # Add-entry flow (product / meal+portion / manual)
 │   │   ├── goals/
 │   │   │   └── Goals.tsx        # View/edit the single active goal set
 │   │   └── scan/
@@ -47,7 +47,7 @@ web/
 │   ├── store/                   # Zustand stores
 │   │   ├── authStore.ts
 │   │   ├── productStore.ts
-│   │   └── recipeStore.ts
+│   │   └── mealStore.ts
 │   ├── lib/
 │   │   ├── api.ts               # Axios instance + interceptors
 │   │   └── nutrition.ts         # Per-100g / per-portion calculations
@@ -83,9 +83,9 @@ web/
 
 ## Log & Goals (Phase 5, planned)
 - **Goals page** — simple form to view/edit the single active goal set (calories, protein, fat, carbs); no goal calculator yet, values are entered manually
-- **Log page** — daily view grouped by meal (breakfast/lunch/dinner/snack), with a summary vs. active goals per macro
+- **Log page** — daily view grouped by meal slot (breakfast/lunch/dinner/snack), with a summary vs. active goals per macro
 - **Add-entry flow**, three source paths:
   - Product — pick from library, enter grams consumed
-  - Recipe — pick a recipe + named portion (or custom grams); shows the recipe's ingredients with editable per-ingredient grams and live macro recalculation before save. This only overrides that one log entry, not the recipe itself.
+  - Meal — pick a meal + named portion (or custom grams); shows the meal's ingredients with editable per-ingredient grams and live macro recalculation before save. This only overrides that one log entry, not the meal itself.
   - Manual — type calories/protein/fat/carbs directly, no product needed
-- The recipe-logging path depends on Phase 4 (recipes) being implemented on the backend first — the web app currently has no recipe screens built at all (`web/src` doesn't exist yet). Mirror whatever mobile lands on for this flow so the two clients don't diverge.
+- Meals are already implemented on the backend (`/meals` router), so the meal-logging path is unblocked — the web app currently has no meal screens built at all (`web/src` doesn't exist yet). Mirror whatever mobile lands on for this flow so the two clients don't diverge.

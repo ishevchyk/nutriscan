@@ -3,7 +3,7 @@ import { Alert, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'r
 
 import { Radii, Spacing, ThemeColors, Typography } from '../../constants/theme';
 import { useThemeColor } from '../../hooks/useThemeColor';
-import { RecipePortion } from '../../store/recipeStore';
+import { MealPortion } from '../../store/mealStore';
 import { computeIngredientsNutrition, scaleNutrition } from '../../utils/nutritionUtils';
 import { GroupChip } from '../groups/GroupChip';
 import { BottomSheet, CollapsibleSection, SegmentedTabs, Stepper } from '../ui';
@@ -11,16 +11,16 @@ import { IngredientVM } from './types';
 
 type TrackerTab = 'meal' | 'portion' | 'grams';
 
-/** 'servings' = the automatic 1/N-of-meal split; otherwise a RecipePortion id. */
+/** 'servings' = the automatic 1/N-of-meal split; otherwise a MealPortion id. */
 type PortionChoice = 'servings' | string;
 
 type AddToTrackerSheetProps = {
   visible: boolean;
   onClose: () => void;
-  recipeName: string;
+  mealName: string;
   servings: number;
   ingredients: IngredientVM[];
-  portions?: RecipePortion[];
+  portions?: MealPortion[];
 };
 
 const TABS: { key: TrackerTab; label: string }[] = [
@@ -43,7 +43,7 @@ function formatAmount(value: number): string {
 export function AddToTrackerSheet({
   visible,
   onClose,
-  recipeName,
+  mealName,
   servings,
   ingredients,
   portions = [],
@@ -95,7 +95,7 @@ export function AddToTrackerSheet({
   }
 
   return (
-    <BottomSheet visible={visible} onClose={onClose} title="Add to Day Tracker" subtitle={recipeName} scrollable>
+    <BottomSheet visible={visible} onClose={onClose} title="Add to Day Tracker" subtitle={mealName} scrollable>
       <View style={styles.body}>
         <SegmentedTabs tabs={TABS} active={tab} onChange={setTab} />
 
@@ -110,7 +110,7 @@ export function AddToTrackerSheet({
                       <Text style={styles.adjustName} numberOfLines={1}>
                         {ingredient.name}
                       </Text>
-                      <Text style={styles.adjustSublabel}>{overridden ? 'Adjusted' : 'As in recipe'}</Text>
+                      <Text style={styles.adjustSublabel}>{overridden ? 'Adjusted' : 'As in meal'}</Text>
                     </View>
                     <View style={styles.gramsPill}>
                       <TextInput
@@ -127,7 +127,7 @@ export function AddToTrackerSheet({
                 );
               })}
               <Text style={styles.adjustFootnote}>
-                Adjustments apply to this tracker entry - the saved recipe stays unchanged
+                Adjustments apply to this tracker entry - the saved meal stays unchanged
               </Text>
             </CollapsibleSection>
           </>

@@ -2,11 +2,11 @@ import { create } from 'zustand';
 import { Product } from './productStore';
 import { ProductFormValues } from '../hooks/useProductForm';
 
-/** Result of the add-product-for-recipe flow: a product saved to the library,
- * form values for a recipe-only (unlinked) ingredient, or null on dismiss. */
+/** Result of the add-product-for-meal flow: a product saved to the library,
+ * form values for a meal-only (unlinked) ingredient, or null on dismiss. */
 export type AddProductResult =
   | { kind: 'library'; product: Product }
-  | { kind: 'recipeOnly'; values: ProductFormValues }
+  | { kind: 'mealOnly'; values: ProductFormValues }
   | null;
 
 interface PickerState {

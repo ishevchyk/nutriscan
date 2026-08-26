@@ -19,7 +19,7 @@ function viewerCss(colors: ThemeColors) {
   `;
 }
 
-/** Read-only renderer for stored rich-text HTML (recipe steps, product notes).
+/** Read-only renderer for stored rich-text HTML (meal steps, product notes).
  * Uses the same TipTap engine as RichEditorField so saved content renders
  * exactly as it was authored. */
 export function RichTextView({ html, style }: RichTextViewProps) {

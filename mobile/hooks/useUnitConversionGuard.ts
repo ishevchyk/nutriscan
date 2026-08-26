@@ -21,9 +21,9 @@ function isMissingConversion(err: unknown): boolean {
 }
 
 /** Central orchestration for "How much does 1 [unit] of [product] weigh?" —
- * shared between the recipe edit screen (reactive: catches the backend's
- * unit_conversion_missing 422 and retries) and the add-recipe builder
- * (proactive: no recipe exists yet to call, so it checks the saved-conversion
+ * shared between the meal edit screen (reactive: catches the backend's
+ * unit_conversion_missing 422 and retries) and the add-meal builder
+ * (proactive: no meal exists yet to call, so it checks the saved-conversion
  * cache directly and prompts before adding a household-unit ingredient). */
 export function useUnitConversionGuard() {
   const [pending, setPending] = useState<PendingPrompt | null>(null);

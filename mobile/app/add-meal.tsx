@@ -7,18 +7,18 @@ import { Radii, Spacing, ThemeColors, Typography } from '../constants/theme';
 import { GRAM_ONLY_UNITS, GRAM_UNIT, ALL_UNITS } from '../constants/units';
 import { useThemeColor } from '../hooks/useThemeColor';
 import { usePickProduct } from '../hooks/usePickProduct';
-import { useAddProductForRecipe } from '../hooks/useAddProductForRecipe';
-import { useRecipeForm, RecipeFormValues } from '../hooks/useRecipeForm';
+import { useAddProductForMeal } from '../hooks/useAddProductForMeal';
+import { useMealForm, MealFormValues } from '../hooks/useMealForm';
 import { useUnitConversionGuard } from '../hooks/useUnitConversionGuard';
-import { IngredientInput, useRecipeStore } from '../store/recipeStore';
+import { IngredientInput, useMealStore } from '../store/mealStore';
 import { Product, useProductStore } from '../store/productStore';
 import { afterSheetClose } from '../utils/afterSheetClose';
-import { NutritionSummaryCard } from '../components/recipes/NutritionSummaryCard';
-import { IngredientCard } from '../components/recipes/IngredientCard';
-import { IngredientManageSheet } from '../components/recipes/IngredientManageSheet';
-import { AddIngredientSheet } from '../components/recipes/AddIngredientSheet';
-import { MissingConversionSheet } from '../components/recipes/MissingConversionSheet';
-import { IngredientVM } from '../components/recipes/types';
+import { NutritionSummaryCard } from '../components/meals/NutritionSummaryCard';
+import { IngredientCard } from '../components/meals/IngredientCard';
+import { IngredientManageSheet } from '../components/meals/IngredientManageSheet';
+import { AddIngredientSheet } from '../components/meals/AddIngredientSheet';
+import { MissingConversionSheet } from '../components/meals/MissingConversionSheet';
+import { IngredientVM } from '../components/meals/types';
 import { computeIngredientsNutrition } from '../utils/nutritionUtils';
 import { CollapsibleSection, RichEditorField, SectionLabel, Stepper, UnderlineField } from '../components/ui';
 
@@ -68,21 +68,21 @@ function draftToInput(draft: IngredientVM): IngredientInput {
     };
 }
 
-export default function AddRecipe() {
+export default function AddMeal() {
     const router = useRouter();
-    const { createRecipe } = useRecipeStore();
+    const { createMeal } = useMealStore();
     const { addProduct } = useProductStore();
     const colors = useThemeColor();
     const styles = useMemo(() => createStyles(colors), [colors]);
     const { pick } = usePickProduct();
-    const { addProductForRecipe } = useAddProductForRecipe();
+    const { addProductForMeal } = useAddProductForMeal();
     const guard = useUnitConversionGuard();
 
     const [drafts, setDrafts] = useState<IngredientVM[]>([]);
     const [managedKey, setManagedKey] = useState<string | null>(null);
     const [addSheetOpen, setAddSheetOpen] = useState(false);
 
-    const { control, handleSubmit, watch, formState: { errors } } = useRecipeForm();
+    const { control, handleSubmit, watch, formState: { errors } } = useMealForm();
     const watchedServings = watch('servings') ?? 1;
 
     const managedDraft = drafts.find((d) => d.key === managedKey) ?? null;
@@ -93,7 +93,7 @@ export default function AddRecipe() {
         setDrafts((list) => list.map((d) => (d.key === key ? { ...d, ...patch } : d)));
     }
 
-    /** No backend call exists yet to react to (the recipe isn't created until
+    /** No backend call exists yet to react to (the meal isn't created until
      * Save), so household-unit conversions are resolved proactively against
      * the saved-conversion cache the moment a unit is picked. */
     async function handleDraftAmountCommit(draft: IngredientVM, newAmount: number) {
@@ -130,7 +130,7 @@ export default function AddRecipe() {
     function handleAddProduct() {
         setAddSheetOpen(false);
         afterSheetClose(async () => {
-            const result = await addProductForRecipe();
+            const result = await addProductForMeal();
             if (!result) return;
             if (result.kind === 'library') {
                 setDrafts((list) => [...list, productToDraft(result.product)]);
@@ -160,9 +160,9 @@ export default function AddRecipe() {
         });
     }
 
-    async function onSubmit(data: RecipeFormValues) {
-        const recipe = await createRecipe({ ...data, ingredients: drafts.map(draftToInput) });
-        router.replace({ pathname: '/recipe/[id]', params: { id: recipe.id } });
+    async function onSubmit(data: MealFormValues) {
+        const meal = await createMeal({ ...data, ingredients: drafts.map(draftToInput) });
+        router.replace({ pathname: '/meal/[id]', params: { id: meal.id } });
     }
 
     return (
@@ -175,7 +175,7 @@ export default function AddRecipe() {
                             name="name"
                             render={({ field: { onChange, onBlur, value } }) => (
                                 <UnderlineField
-                                    label="Recipe name"
+                                    label="Meal name"
                                     value={value ?? ''}
                                     onChangeText={onChange}
                                     onBlur={onBlur}
@@ -189,7 +189,7 @@ export default function AddRecipe() {
                     </Pressable>
                 </View>
 
-                <CollapsibleSection label="Recipe steps" sublabel="Preparation notes shown on the recipe">
+                <CollapsibleSection label="Meal steps" sublabel="Preparation notes shown on the meal">
                     <Controller
                         control={control}
                         name="description"
@@ -198,7 +198,7 @@ export default function AddRecipe() {
                                 value={value ?? ''}
                                 onChangeText={onChange}
                                 onBlur={onBlur}
-                                placeholder="What this recipe is, prep steps, etc."
+                                placeholder="What this meal is, prep steps, etc."
                             />
                         )}
                     />

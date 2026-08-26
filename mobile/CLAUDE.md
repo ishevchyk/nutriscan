@@ -33,9 +33,9 @@ database schema, API endpoints, and AI integration details.
 
 ## Log & Goals (Phase 5, planned)
 - **Goals screen** — simple form to view/edit the single active goal set (calories, protein, fat, carbs); no goal calculator yet, values are entered manually
-- **Log screen** — daily view grouped by meal (breakfast/lunch/dinner/snack), with a summary vs. active goals per macro
+- **Log screen** — daily view grouped by meal slot (breakfast/lunch/dinner/snack), with a summary vs. active goals per macro
 - **Add-entry flow**, three source paths:
   - Product — pick from library, enter grams consumed
-  - Recipe — pick a recipe + named portion (or custom grams); shows the recipe's ingredients with editable per-ingredient grams and live macro recalculation before save. This only overrides that one log entry, not the recipe itself.
+  - Meal — pick a meal + named portion (or custom grams); shows the meal's ingredients with editable per-ingredient grams and live macro recalculation before save. This only overrides that one log entry, not the meal itself.
   - Manual — type calories/protein/fat/carbs directly, no product needed
-- Recipes (Phase 3) are now implemented (`useRecipeStore`, `app/(tabs)/recipes.tsx`, `app/recipe/[id].tsx`, `app/add-recipe.tsx`), so the recipe-logging path is unblocked. Product and manual entry don't have this dependency either way.
+- Meals (Phase 3) are now implemented (`useMealStore`, `app/(tabs)/meals.tsx`, `app/meal/[id].tsx`, `app/add-meal.tsx`), so the meal-logging path is unblocked. Product and manual entry don't have this dependency either way.
