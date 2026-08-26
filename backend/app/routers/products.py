@@ -9,10 +9,24 @@ from app.dependencies import get_current_user, get_db
 from app.models.group import Group
 from app.models.product import Product
 from app.models.product_group import ProductGroup
+from app.models.product_unit_conversions import ProductUnitConversion
 from app.models.user import User
 from app.schemas.product import ProductCreate, ProductOut, ProductUpdate
+from app.schemas.product_unit_conversion import ProductUnitConversionCreate, ProductUnitConversionOut
 
 router = APIRouter(prefix="/products", tags=["products"])
+
+
+async def _get_owned_product(db: AsyncSession, product_id: UUID, current_user: User) -> Product:
+    result = await db.execute(
+        select(Product).where(
+            Product.id == product_id, Product.user_id == current_user.id, Product.deleted_at.is_(None)
+        )
+    )
+    product = result.scalar_one_or_none()
+    if not product:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
+    return product
 
 
 async def _attach_groups(db: AsyncSession, products: list[Product]) -> None:
@@ -158,3 +172,50 @@ async def restore_product(
     await db.refresh(product)
     await _attach_groups(db, [product])
     return product
+
+
+@router.get("/{product_id}/unit-conversions", response_model=list[ProductUnitConversionOut])
+async def list_unit_conversions(
+    product_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    await _get_owned_product(db, product_id, current_user)
+    result = await db.execute(
+        select(ProductUnitConversion).where(ProductUnitConversion.product_id == product_id)
+    )
+    return result.scalars().all()
+
+
+@router.post(
+    "/{product_id}/unit-conversions",
+    response_model=ProductUnitConversionOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def save_unit_conversion(
+    product_id: UUID,
+    body: ProductUnitConversionCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Upsert: a household unit is keyed by (product_id, unit), so re-saving
+    the same unit (the user correcting a mistaken weight) updates the
+    existing row instead of violating the unique constraint."""
+    await _get_owned_product(db, product_id, current_user)
+    result = await db.execute(
+        select(ProductUnitConversion).where(
+            ProductUnitConversion.product_id == product_id,
+            ProductUnitConversion.unit == body.unit,
+        )
+    )
+    conversion = result.scalar_one_or_none()
+    if conversion is not None:
+        conversion.grams_per_unit = body.grams_per_unit
+    else:
+        conversion = ProductUnitConversion(
+            product_id=product_id, unit=body.unit, grams_per_unit=body.grams_per_unit
+        )
+        db.add(conversion)
+    await db.commit()
+    await db.refresh(conversion)
+    return conversion

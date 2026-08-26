@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Float, ForeignKey, String
+from sqlalchemy import Float, ForeignKey, Numeric, String, Text, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -34,3 +34,5 @@ class RecipeIngredient(Base):
     sugar: Mapped[float | None] = mapped_column(Float, nullable=True)
     salt: Mapped[float | None] = mapped_column(Float, nullable=True)
     grams: Mapped[float] = mapped_column(Float, nullable=False)
+    input_amount: Mapped[float] = mapped_column(Numeric, nullable=False)
+    input_unit: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'g'"))

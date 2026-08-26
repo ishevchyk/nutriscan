@@ -39,7 +39,7 @@ async def test_create_recipe_with_linked_ingredient_snapshots_product_values(cli
     )
     resp = await client.post(
         "/recipes",
-        json={"name": "Milkshake", "ingredients": [{"product_id": product["id"], "grams": 200}]},
+        json={"name": "Milkshake", "ingredients": [{"product_id": product["id"], "input_amount": 200}]},
         headers=auth_headers,
     )
     assert resp.status_code == 201
@@ -63,7 +63,7 @@ async def test_create_recipe_with_manual_ingredient(client, auth_headers):
                 {
                     "name": "Homemade granola",
                     "brand": None,
-                    "grams": 80,
+                    "input_amount": 80,
                     "calories": 410,
                     "protein": 9,
                     "fat": 14,
@@ -97,7 +97,7 @@ async def test_create_recipe_zero_ingredients_no_error(client, auth_headers):
 async def test_unlinked_ingredient_missing_name_422(client, auth_headers):
     resp = await client.post(
         "/recipes",
-        json={"name": "Bad Recipe", "ingredients": [{"grams": 50, "calories": 100}]},
+        json={"name": "Bad Recipe", "ingredients": [{"input_amount": 50, "calories": 100}]},
         headers=auth_headers,
     )
     assert resp.status_code == 422
@@ -144,13 +144,13 @@ async def test_update_recipe_replace_all_ingredients(client, auth_headers):
     product_a = await _create_product(client, auth_headers, name="A", calories=100)
     product_b = await _create_product(client, auth_headers, name="B", calories=200)
     recipe = await _create_recipe(
-        client, auth_headers, name="Swap Test", ingredients=[{"product_id": product_a["id"], "grams": 100}]
+        client, auth_headers, name="Swap Test", ingredients=[{"product_id": product_a["id"], "input_amount": 100}]
     )
     assert len(recipe["ingredients"]) == 1
 
     update_resp = await client.patch(
         f"/recipes/{recipe['id']}",
-        json={"ingredients": [{"product_id": product_b["id"], "grams": 50}]},
+        json={"ingredients": [{"product_id": product_b["id"], "input_amount": 50}]},
         headers=auth_headers,
     )
     assert update_resp.status_code == 200
@@ -163,7 +163,7 @@ async def test_update_recipe_replace_all_ingredients(client, auth_headers):
 async def test_update_recipe_omit_ingredients_leaves_untouched(client, auth_headers):
     product = await _create_product(client, auth_headers)
     recipe = await _create_recipe(
-        client, auth_headers, name="Untouched", ingredients=[{"product_id": product["id"], "grams": 100}]
+        client, auth_headers, name="Untouched", ingredients=[{"product_id": product["id"], "input_amount": 100}]
     )
 
     update_resp = await client.patch(f"/recipes/{recipe['id']}", json={"name": "Renamed"}, headers=auth_headers)
@@ -176,7 +176,7 @@ async def test_update_recipe_omit_ingredients_leaves_untouched(client, auth_head
 async def test_update_recipe_clear_ingredients_with_empty_list(client, auth_headers):
     product = await _create_product(client, auth_headers)
     recipe = await _create_recipe(
-        client, auth_headers, name="Clearable", ingredients=[{"product_id": product["id"], "grams": 100}]
+        client, auth_headers, name="Clearable", ingredients=[{"product_id": product["id"], "input_amount": 100}]
     )
 
     update_resp = await client.patch(f"/recipes/{recipe['id']}", json={"ingredients": []}, headers=auth_headers)
@@ -188,7 +188,7 @@ async def test_create_recipe_ingredient_foreign_product_400(client, auth_headers
     foreign_product = await _create_product(client, second_user_headers)
     resp = await client.post(
         "/recipes",
-        json={"name": "Bad", "ingredients": [{"product_id": foreign_product["id"], "grams": 50}]},
+        json={"name": "Bad", "ingredients": [{"product_id": foreign_product["id"], "input_amount": 50}]},
         headers=auth_headers,
     )
     assert resp.status_code == 400
@@ -199,7 +199,7 @@ async def test_create_recipe_ingredient_deleted_product_400(client, auth_headers
     await client.delete(f"/products/{product['id']}", headers=auth_headers)
     resp = await client.post(
         "/recipes",
-        json={"name": "Bad", "ingredients": [{"product_id": product["id"], "grams": 50}]},
+        json={"name": "Bad", "ingredients": [{"product_id": product["id"], "input_amount": 50}]},
         headers=auth_headers,
     )
     assert resp.status_code == 400
@@ -239,7 +239,7 @@ async def test_deleting_linked_product_unlinks_ingredient_but_keeps_snapshot(cli
     product = await _create_product(client, auth_headers, name="Soon Gone", calories=88)
     recipe = await _create_recipe(
         client, auth_headers, name="Survives Product Removal",
-        ingredients=[{"product_id": product["id"], "grams": 100}],
+        ingredients=[{"product_id": product["id"], "input_amount": 100}],
     )
 
     # Simulate what the 30-day purge job eventually does: hard-delete the
@@ -261,3 +261,31 @@ async def test_deleting_linked_product_unlinks_ingredient_but_keeps_snapshot(cli
     assert ing["name"] == "Soon Gone"
     assert ing["calories"] == 88
     assert body["nutrition"]["per_meal"]["calories"] == pytest.approx(100 / 100 * 88)
+
+
+async def test_recipe_description_keeps_rich_text_markup(client, auth_headers):
+    description = "<h2>Steps</h2><ol><li>Chop</li><li>Fry</li></ol>"
+    resp = await client.post(
+        "/recipes", json={"name": "Structured", "description": description}, headers=auth_headers
+    )
+    assert resp.status_code == 201
+    assert resp.json()["description"] == description
+
+
+async def test_recipe_description_sanitized_on_create_and_update(client, auth_headers):
+    resp = await client.post(
+        "/recipes",
+        json={"name": "XSS", "description": '<p>ok</p><script>alert(1)</script>'},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 201
+    recipe = resp.json()
+    assert recipe["description"] == "<p>ok</p>"
+
+    patch = await client.patch(
+        f"/recipes/{recipe['id']}",
+        json={"description": '<a href="javascript:alert(1)" onclick="x()">link</a>'},
+        headers=auth_headers,
+    )
+    assert patch.status_code == 200
+    assert patch.json()["description"] == "<a rel=\"noopener noreferrer\">link</a>"

@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_db
 from app.models.product import Product
+from app.models.product_unit_conversions import ProductUnitConversion
 from app.models.recipe import Recipe
 from app.models.recipe_ingredient import RecipeIngredient
 from app.models.recipe_portion import RecipePortion
@@ -146,6 +147,52 @@ async def _resolve_ingredient_snapshot(
     }
 
 
+async def _resolve_ingredient_grams(
+    db: AsyncSession,
+    *,
+    product_id: UUID | None,
+    input_amount: float,
+    input_unit: str,
+    grams: float | None,
+) -> float:
+    """input_unit == 'g' -> grams is input_amount as-is. A household unit on a
+    linked ingredient looks up product_unit_conversions (ingredient-specific --
+    a tbsp of sugar has a different grams_per_unit than a tbsp of oil). An
+    unlinked ingredient has no product to key a saved conversion off of, so a
+    household unit there requires grams supplied directly in the same request
+    instead of persisting a one-off conversion for a rare case."""
+    if input_unit == "g":
+        return input_amount
+
+    if product_id is not None:
+        result = await db.execute(
+            select(ProductUnitConversion).where(
+                ProductUnitConversion.product_id == product_id,
+                ProductUnitConversion.unit == input_unit,
+            )
+        )
+        conversion = result.scalar_one_or_none()
+        if conversion is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "error_code": "unit_conversion_missing",
+                    "message": f"No saved conversion for unit '{input_unit}' on this product",
+                },
+            )
+        return input_amount * float(conversion.grams_per_unit)
+
+    if grams is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "error_code": "grams_required",
+                "message": "grams is required for an unlinked ingredient using a non-gram unit",
+            },
+        )
+    return grams
+
+
 @router.get("", response_model=list[RecipeListItemOut])
 async def list_recipes(
     db: AsyncSession = Depends(get_db),
@@ -187,7 +234,22 @@ async def create_recipe(
     await db.flush()
     for item in body.ingredients:
         snapshot = await _resolve_ingredient_snapshot(db, item, current_user)
-        db.add(RecipeIngredient(recipe_id=recipe.id, grams=item.grams, **snapshot))
+        grams = await _resolve_ingredient_grams(
+            db,
+            product_id=snapshot["product_id"],
+            input_amount=item.input_amount,
+            input_unit=item.input_unit,
+            grams=item.grams,
+        )
+        db.add(
+            RecipeIngredient(
+                recipe_id=recipe.id,
+                grams=grams,
+                input_amount=item.input_amount,
+                input_unit=item.input_unit,
+                **snapshot,
+            )
+        )
     await db.commit()
     await db.refresh(recipe)
     return await _build_recipe_detail(db, recipe)
@@ -219,7 +281,22 @@ async def update_recipe(
         await db.execute(delete(RecipeIngredient).where(RecipeIngredient.recipe_id == recipe.id))
         for item in body.ingredients:
             snapshot = await _resolve_ingredient_snapshot(db, item, current_user)
-            db.add(RecipeIngredient(recipe_id=recipe.id, grams=item.grams, **snapshot))
+            grams = await _resolve_ingredient_grams(
+                db,
+                product_id=snapshot["product_id"],
+                input_amount=item.input_amount,
+                input_unit=item.input_unit,
+                grams=item.grams,
+            )
+            db.add(
+                RecipeIngredient(
+                    recipe_id=recipe.id,
+                    grams=grams,
+                    input_amount=item.input_amount,
+                    input_unit=item.input_unit,
+                    **snapshot,
+                )
+            )
 
     await db.commit()
     await db.refresh(recipe)
@@ -259,6 +336,35 @@ async def restore_recipe(
     return await _build_recipe_detail(db, recipe)
 
 
+@router.post("/{recipe_id}/ingredients", response_model=RecipeIngredientOut, status_code=status.HTTP_201_CREATED)
+async def add_ingredient(
+    recipe_id: UUID,
+    body: RecipeIngredientIn,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    recipe = await _get_owned_recipe(db, recipe_id, current_user)
+    snapshot = await _resolve_ingredient_snapshot(db, body, current_user)
+    grams = await _resolve_ingredient_grams(
+        db,
+        product_id=snapshot["product_id"],
+        input_amount=body.input_amount,
+        input_unit=body.input_unit,
+        grams=body.grams,
+    )
+    ingredient = RecipeIngredient(
+        recipe_id=recipe.id,
+        grams=grams,
+        input_amount=body.input_amount,
+        input_unit=body.input_unit,
+        **snapshot,
+    )
+    db.add(ingredient)
+    await db.commit()
+    await db.refresh(ingredient)
+    return ingredient
+
+
 @router.patch("/{recipe_id}/ingredients/{ingredient_id}", response_model=RecipeIngredientOut)
 async def update_ingredient(
     recipe_id: UUID,
@@ -269,7 +375,10 @@ async def update_ingredient(
 ):
     """Relink (product_id set to a new product -> snapshot resyncs from it),
     unlink (product_id explicitly set to null -> snapshot preserved as-is), or
-    edit the snapshot fields directly (no product_id key in the body at all)."""
+    edit the snapshot fields directly (no product_id key in the body at all).
+    Sending input_amount and/or input_unit re-derives grams from whichever of
+    the two didn't change (via _resolve_ingredient_grams); grams sent alone,
+    with neither of those keys present, is still a direct manual override."""
     ingredient = await _get_owned_ingredient(db, recipe_id, ingredient_id, current_user)
     updates = body.model_dump(exclude_unset=True)
 
@@ -295,6 +404,19 @@ async def update_ingredient(
                 updates.pop(key, None)
         else:
             ingredient.product_id = None
+
+    if "input_amount" in updates or "input_unit" in updates:
+        input_amount = updates.pop("input_amount", ingredient.input_amount)
+        input_unit = updates.pop("input_unit", ingredient.input_unit)
+        ingredient.grams = await _resolve_ingredient_grams(
+            db,
+            product_id=ingredient.product_id,
+            input_amount=input_amount,
+            input_unit=input_unit,
+            grams=updates.pop("grams", None),
+        )
+        ingredient.input_amount = input_amount
+        ingredient.input_unit = input_unit
 
     for field, value in updates.items():
         setattr(ingredient, field, value)

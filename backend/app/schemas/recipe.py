@@ -3,17 +3,24 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
 
+from app.sanitize import sanitize_rich_text
 from app.schemas.recipe_portion import RecipePortionOut, _validate_positive_grams
 
 
 class RecipeIngredientIn(BaseModel):
-    """Two accepted shapes: {product_id, grams} to link a saved product (its
-    current name/brand/macros are copied into the snapshot server-side, so any
-    snapshot fields sent here are ignored), or {name, grams, ...macros} for a
-    manual/unlinked ingredient with no product in the library."""
+    """Two accepted shapes: {product_id, input_amount, input_unit} to link a saved
+    product (its current name/brand/macros are copied into the snapshot
+    server-side, so any snapshot fields sent here are ignored), or {name,
+    input_amount, input_unit, ...macros} for a manual/unlinked ingredient with no
+    product in the library. `grams` is normally derived server-side from
+    input_amount/input_unit (see _resolve_ingredient_grams in the router) and
+    should only be sent directly for an unlinked ingredient using a non-gram
+    unit, where there's no product to key a saved conversion off of."""
 
     product_id: uuid.UUID | None = None
-    grams: float
+    input_amount: float
+    input_unit: str = "g"
+    grams: float | None = None
     name: str | None = None
     brand: str | None = None
     calories: float | None = None
@@ -24,10 +31,17 @@ class RecipeIngredientIn(BaseModel):
     sugar: float | None = None
     salt: float | None = None
 
+    @field_validator("input_amount")
+    @classmethod
+    def _validate_input_amount(cls, v: float) -> float:
+        if v <= 0:
+            raise ValueError("input_amount must be greater than 0")
+        return v
+
     @field_validator("grams")
     @classmethod
-    def _validate_grams(cls, v: float) -> float:
-        return _validate_positive_grams(v)
+    def _validate_grams(cls, v: float | None) -> float | None:
+        return v if v is None else _validate_positive_grams(v)
 
     @model_validator(mode="after")
     def _require_name_when_unlinked(self):
@@ -41,6 +55,8 @@ class RecipeIngredientOut(BaseModel):
     product_id: uuid.UUID | None
     name: str
     brand: str | None
+    input_amount: float
+    input_unit: str
     grams: float
     calories: float | None
     protein: float | None
@@ -61,9 +77,14 @@ class RecipeIngredientOut(BaseModel):
 class RecipeIngredientPatch(BaseModel):
     """For PATCH /recipes/:id/ingredients/:ingredient_id. Every field is optional;
     presence in the request (via model_dump(exclude_unset=True) in the route), not
-    value, drives relink/unlink/edit branching."""
+    value, drives relink/unlink/edit branching. `grams` stays directly editable
+    for a manual snapshot tweak that leaves input_amount/input_unit alone;
+    sending input_amount and/or input_unit instead re-derives grams server-side
+    (see _resolve_ingredient_grams in the router)."""
 
     product_id: uuid.UUID | None = None
+    input_amount: float | None = None
+    input_unit: str | None = None
     grams: float | None = None
     name: str | None = None
     brand: str | None = None
@@ -74,6 +95,13 @@ class RecipeIngredientPatch(BaseModel):
     fiber: float | None = None
     sugar: float | None = None
     salt: float | None = None
+
+    @field_validator("input_amount")
+    @classmethod
+    def _validate_input_amount(cls, v: float | None) -> float | None:
+        if v is not None and v <= 0:
+            raise ValueError("input_amount must be greater than 0")
+        return v
 
     @field_validator("grams")
     @classmethod
@@ -88,6 +116,11 @@ class RecipeCreate(BaseModel):
     servings: int = Field(default=1, ge=1)
     ingredients: list[RecipeIngredientIn] = []
 
+    @field_validator("description")
+    @classmethod
+    def sanitize_description(cls, v: str | None) -> str | None:
+        return sanitize_rich_text(v)
+
 
 class RecipeUpdate(BaseModel):
     name: str | None = None
@@ -95,6 +128,11 @@ class RecipeUpdate(BaseModel):
     photo_url: str | None = None
     servings: int | None = Field(default=None, ge=1)
     ingredients: list[RecipeIngredientIn] | None = None  # None = untouched; [] = clear all
+
+    @field_validator("description")
+    @classmethod
+    def sanitize_description(cls, v: str | None) -> str | None:
+        return sanitize_rich_text(v)
 
 
 class NutritionOut(BaseModel):
