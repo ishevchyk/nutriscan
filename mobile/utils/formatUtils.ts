@@ -3,7 +3,7 @@ export function formatValue(value: number | null): string {
 }
 
 export function formatMacro(value: number | null): string {
-    return value == null ? '—' : value.toFixed(1);
+    return value == null ? '-' : value.toFixed(1);
 }
 
 export function daysUntilPurge(deletedAt: string, retentionDays: number): number {

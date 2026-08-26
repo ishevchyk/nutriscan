@@ -3,12 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 
 import { API_BASE_URL, SECURE_STORE_REFRESH_KEY } from '../constants/env';
 import { useAuthStore } from '../store/authStore';
-
-// Bare instance used for auth endpoints (no interceptors — avoids infinite refresh loops)
-export const authApi = axios.create({
-  baseURL: API_BASE_URL,
-  headers: { 'Content-Type': 'application/json' },
-});
+import {authApi} from "./authApi";
 
 // Main intercepted instance for all authenticated requests
 export const api = axios.create({

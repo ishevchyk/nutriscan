@@ -9,6 +9,8 @@ import {
     JetBrainsMono_700Bold,
 } from '@expo-google-fonts/jetbrains-mono';
 import {backAction, ScreenHeader} from "../components/navigation/ScreenHeader";
+import {router} from "expo-router";
+import {usePickerStore} from "../store/pickerStore";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -68,13 +70,49 @@ export default function RootLayout() {
                 <Stack.Screen
                     name="recently-deleted"
                     options={{
-                        title: 'Recently deleted'
+                        header: () => (
+                            <ScreenHeader headerTitle="Recently deleted" rightAction={backAction('Back')}/>
+                        ),
                     }}
                 />
                 <Stack.Screen
                     name="groups"
                     options={{
                         title: 'Groups'
+                    }}
+                />
+                <Stack.Screen
+                    name="add-recipe"
+                    options={{
+                        header: () => (
+                            <ScreenHeader headerTitle="Add Recipe" rightAction={backAction('Recipes')}/>
+                        ),
+                    }}
+                />
+                <Stack.Screen
+                    name="recipe/[id]"
+                    options={{
+                        header: () => (
+                            <ScreenHeader headerTitle="Recipe" rightAction={backAction('Recipes')}/>
+                        ),
+                    }}
+                />
+                <Stack.Screen
+                    name="product-picker"
+                    options={{
+                        presentation: 'modal',
+                        header: () => (
+                            <ScreenHeader
+                                headerTitle="Select Product"
+                                rightAction={{
+                                    label: 'CANCEL',
+                                    onPress: () => {
+                                        usePickerStore.getState().resolve(null);
+                                        router.back();
+                                    },
+                                }}
+                            />
+                        ),
                     }}
                 />
             </Stack>

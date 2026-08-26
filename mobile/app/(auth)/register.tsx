@@ -9,7 +9,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import {authApi} from "../../lib/api";
+import {authApi} from "../../lib/authApi";
 import * as SecureStore from "expo-secure-store";
 import {SECURE_STORE_REFRESH_KEY} from "../../constants/env";
 import {Radii, Spacing, ThemeColors, Typography} from "../../constants/theme";

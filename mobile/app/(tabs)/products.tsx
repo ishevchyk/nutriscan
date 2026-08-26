@@ -44,18 +44,20 @@ export default function ProductsScreen() {
 
       <TextInput placeholder="Search library..." style={styles.searchInput}/>
 
-      <View style={styles.groupsHeader}>
-        <Text style={styles.metaLabel}>Groups</Text>
-        <Pressable onPress={() => router.push('/groups')}>
-          <Text style={styles.manageLink}>Manage</Text>
-        </Pressable>
+      <View style={styles.groupsContainer}>
+        <View style={styles.groupsHeader}>
+          <Text style={styles.metaLabel}>Groups</Text>
+          <Pressable onPress={() => router.push('/groups')}>
+            <Text style={styles.manageLink}>Manage</Text>
+          </Pressable>
+        </View>
+        <GroupFilterChips
+          groups={groups}
+          loaded={groupsLoaded}
+          activeGroupFilter={activeGroupFilter}
+          onSelect={handleFilterSelect}
+        />
       </View>
-      <GroupFilterChips
-        groups={groups}
-        loaded={groupsLoaded}
-        activeGroupFilter={activeGroupFilter}
-        onSelect={handleFilterSelect}
-      />
 
       {initializing && <ActivityIndicator size="large" color={colors.primary} />}
 
@@ -76,11 +78,16 @@ export default function ProductsScreen() {
 
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
-    container: {flex: 1, padding: Spacing.xl, backgroundColor: colors.background},
+    container: {
+      flex: 1,
+      padding: Spacing.xl,
+      paddingBottom: 0,
+      backgroundColor: colors.background,
+      gap: Spacing.lg
+    },
     heading: {
       fontSize: Typography.fontSize.xl,
       fontWeight: Typography.fontWeight.bold,
-      marginBottom: Spacing.lg,
       color: colors.text
     },
     placeholder: {color: colors.textSecondary, textAlign: 'center', marginTop: 40},
@@ -88,7 +95,6 @@ function createStyles(colors: ThemeColors) {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      marginBottom: Spacing.md,
     },
     metaLabel: {
       fontFamily: Typography.fontFamily.mono,
@@ -108,14 +114,15 @@ function createStyles(colors: ThemeColors) {
       borderWidth: 1,
       borderRadius: 8,
       paddingHorizontal: 10,
-      marginBottom: Spacing.lg,
       backgroundColor: colors.surface,
+    },
+    groupsContainer: {
+      gap: Spacing.sm,
     },
     groupsHeader: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      marginBottom: Spacing.sm,
     },
     manageLink: {
       fontFamily: Typography.fontFamily.mono,
