@@ -38,4 +38,4 @@ database schema, API endpoints, and AI integration details.
   - Product — pick from library, enter grams consumed
   - Recipe — pick a recipe + named portion (or custom grams); shows the recipe's ingredients with editable per-ingredient grams and live macro recalculation before save. This only overrides that one log entry, not the recipe itself.
   - Manual — type calories/protein/fat/carbs directly, no product needed
-- The recipe-logging path depends on Phase 4 (recipes) being implemented first — currently `app/(tabs)/recipes.tsx` is a placeholder screen, so that path can't be built yet. Product and manual entry don't have this dependency.
+- Recipes (Phase 3) are now implemented (`useRecipeStore`, `app/(tabs)/recipes.tsx`, `app/recipe/[id].tsx`, `app/add-recipe.tsx`), so the recipe-logging path is unblocked. Product and manual entry don't have this dependency either way.

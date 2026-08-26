@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Radii, Spacing, ThemeColors, Typography } from '../constants/theme';
 import { useThemeColor } from '../hooks/useThemeColor';
 import { Product, useProductStore, DELETED_RETENTION_DAYS } from '../store/productStore';
+import { RecipeSummary, useRecipeStore } from '../store/recipeStore';
 import { daysUntilPurge } from '../utils/formatUtils';
 import { ProductCardBase } from '../components/products/ProductCardBase';
 
@@ -13,18 +12,17 @@ const URGENT_THRESHOLD_DAYS = 7;
 
 export default function RecentlyDeletedScreen() {
   const { deletedProducts, deletedLoaded, loadDeletedProducts, restoreProduct } = useProductStore();
+  const { deletedRecipes, deletedLoaded: deletedRecipesLoaded, loadDeletedRecipes, restoreRecipe } = useRecipeStore();
   const [loading, setLoading] = useState(true);
   const [restoringId, setRestoringId] = useState<string | null>(null);
   const colors = useThemeColor();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
 
   useEffect(() => {
-    loadDeletedProducts().finally(() => setLoading(false));
+    Promise.all([loadDeletedProducts(), loadDeletedRecipes()]).finally(() => setLoading(false));
   }, []);
 
-  async function handleRestore(id: string) {
+  async function handleRestoreProduct(id: string) {
     setRestoringId(id);
     try {
       await restoreProduct(id);
@@ -33,13 +31,23 @@ export default function RecentlyDeletedScreen() {
     }
   }
 
-  function renderItem({ item }: { item: Product }) {
+  async function handleRestoreRecipe(id: string) {
+    setRestoringId(id);
+    try {
+      await restoreRecipe(id);
+    } finally {
+      setRestoringId(null);
+    }
+  }
+
+  function renderProduct(item: Product) {
     const remaining = item.deleted_at ? daysUntilPurge(item.deleted_at, DELETED_RETENTION_DAYS) : DELETED_RETENTION_DAYS;
     const urgent = remaining <= URGENT_THRESHOLD_DAYS;
     const isRestoring = restoringId === item.id;
 
     return (
       <ProductCardBase
+        key={item.id}
         name={item.name}
         brand={item.brand}
         footer={
@@ -52,7 +60,30 @@ export default function RecentlyDeletedScreen() {
             </View>
             <Pressable
               style={[styles.restoreButton, isRestoring && styles.restoreButtonDisabled]}
-              onPress={() => handleRestore(item.id)}
+              onPress={() => handleRestoreProduct(item.id)}
+              disabled={isRestoring}
+            >
+              <Text style={styles.restoreButtonText}>{isRestoring ? 'RESTORING…' : 'RESTORE'}</Text>
+            </Pressable>
+          </View>
+        }
+      />
+    );
+  }
+
+  function renderRecipe(item: RecipeSummary) {
+    const isRestoring = restoringId === item.id;
+
+    return (
+      <ProductCardBase
+        key={item.id}
+        name={item.name}
+        footer={
+          <View style={styles.cardFooter}>
+            <Text style={styles.purgeLabel}>UPDATED {new Date(item.updated_at).toLocaleDateString()}</Text>
+            <Pressable
+              style={[styles.restoreButton, isRestoring && styles.restoreButtonDisabled]}
+              onPress={() => handleRestoreRecipe(item.id)}
               disabled={isRestoring}
             >
               <Text style={styles.restoreButtonText}>{isRestoring ? 'RESTORING…' : 'RESTORE'}</Text>
@@ -65,29 +96,39 @@ export default function RecentlyDeletedScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.content}>
+      <ScrollView style={styles.content} contentContainerStyle={styles.contentInner}>
         <View style={styles.banner}>
           <View style={styles.bannerDot} />
           <Text style={styles.bannerText}>
             Deleted products are retained for <Text style={styles.bannerBold}>{DELETED_RETENTION_DAYS} days</Text>. Restore
-            them any time before permanent purge.
+            them any time before permanent purge. Recipe portions delete instantly and cannot be restored.
           </Text>
         </View>
 
         {loading && <ActivityIndicator size="large" color={colors.primary} />}
 
         {deletedLoaded && (
-          <Text style={styles.metaLabel}>
-            {deletedProducts.length} {deletedProducts.length === 1 ? 'item' : 'items'} pending purge
-          </Text>
+          <>
+            <Text style={styles.sectionHeader}>Products</Text>
+            {deletedProducts.length === 0 ? (
+              <Text style={styles.placeholder}>Nothing here yet.</Text>
+            ) : (
+              deletedProducts.map(renderProduct)
+            )}
+          </>
         )}
 
-        {deletedLoaded && deletedProducts.length === 0 && (
-          <Text style={styles.placeholder}>Nothing here yet.</Text>
+        {deletedRecipesLoaded && (
+          <>
+            <Text style={[styles.sectionHeader, styles.sectionSpacing]}>Recipes</Text>
+            {deletedRecipes.length === 0 ? (
+              <Text style={styles.placeholder}>Nothing here yet.</Text>
+            ) : (
+              deletedRecipes.map(renderRecipe)
+            )}
+          </>
         )}
-
-        <FlatList data={deletedProducts} keyExtractor={(item) => item.id} renderItem={renderItem} />
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -95,7 +136,8 @@ export default function RecentlyDeletedScreen() {
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    content: { flex: 1, padding: Spacing.xl },
+    content: { flex: 1 },
+    contentInner: { padding: Spacing.xl },
     banner: {
       flexDirection: 'row',
       alignItems: 'flex-start',
@@ -122,7 +164,7 @@ function createStyles(colors: ThemeColors) {
       lineHeight: 20,
     },
     bannerBold: { fontFamily: Typography.fontFamily.monoBold, color: colors.text },
-    metaLabel: {
+    sectionHeader: {
       fontFamily: Typography.fontFamily.mono,
       fontSize: Typography.fontSize.xxs,
       color: colors.textSecondary,
@@ -130,7 +172,8 @@ function createStyles(colors: ThemeColors) {
       letterSpacing: Typography.letterSpacing.label,
       marginBottom: Spacing.md,
     },
-    placeholder: { color: colors.textSecondary, textAlign: 'center', marginTop: 40 },
+    sectionSpacing: { marginTop: Spacing.xl },
+    placeholder: { color: colors.textSecondary, textAlign: 'center', marginTop: 20, marginBottom: Spacing.md },
     cardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     purgeStatus: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     dot: { width: 6, height: 6, borderRadius: 3 },

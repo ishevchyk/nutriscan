@@ -12,12 +12,13 @@ type StatCardProps = {
   unit: string;
   value: number | null;
   onChangeValue?: (value: number | null) => void;
+  onBlur?: () => void;
   size?: StatCardSize;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 };
 
-export function StatCard({ label, unit, value, onChangeValue, size = 'lg', style, testID }: StatCardProps) {
+export function StatCard({ label, unit, value, onChangeValue, onBlur, size = 'lg', style, testID }: StatCardProps) {
   const colors = useThemeColor();
   const styles = useMemo(() => createStyles(colors, size), [colors, size]);
   const editable = onChangeValue != null;
@@ -48,6 +49,7 @@ export function StatCard({ label, unit, value, onChangeValue, size = 'lg', style
             style={styles.value}
             value={text}
             onChangeText={handleChangeText}
+            onBlur={onBlur}
             placeholder="0"
             placeholderTextColor={colors.placeholder}
             keyboardType={Platform.OS === 'ios' ? 'decimal-pad' : 'numeric'}

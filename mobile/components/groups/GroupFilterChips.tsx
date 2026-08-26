@@ -28,7 +28,7 @@ export function GroupFilterChips({ groups, loaded, activeGroupFilter, onSelect }
       style={styles.scroll}
       contentContainerStyle={styles.row}
     >
-      <GroupChip label="All Products" selected={activeGroupFilter === null} onPress={() => onSelect(null)} />
+      <GroupChip label="All" selected={activeGroupFilter === null} onPress={() => onSelect(null)} />
       {groups.map((group) => (
         <GroupChip
           key={group.id}
@@ -43,7 +43,7 @@ export function GroupFilterChips({ groups, loaded, activeGroupFilter, onSelect }
 
 function createStyles() {
   return StyleSheet.create({
-    scroll: { flexGrow: 0 },
+    scroll: { flexGrow: 0, flexShrink: 0 },
     row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.xs },
     loading: { marginVertical: Spacing.md },
   });

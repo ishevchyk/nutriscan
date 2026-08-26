@@ -14,7 +14,7 @@ import {
 import { SECURE_STORE_REFRESH_KEY } from '../../constants/env';
 import { Radii, Spacing, ThemeColors, Typography } from '../../constants/theme';
 import { useThemeColor } from '../../hooks/useThemeColor';
-import { authApi } from '../../lib/api';
+import { authApi } from '../../lib/authApi';
 import { useAuthStore } from '../../store/authStore';
 
 export default function LoginScreen() {

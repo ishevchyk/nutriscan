@@ -2,7 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 import { create } from 'zustand';
 
 import { SECURE_STORE_REFRESH_KEY } from '../constants/env';
-import { authApi } from '../lib/api';
+import { authApi } from '../lib/authApi';
 
 function parseUserId(token: string): string | null {
   try {
