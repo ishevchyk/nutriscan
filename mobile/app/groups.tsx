@@ -154,7 +154,7 @@ export default function GroupsScreen() {
       {editingId && editError && <Text style={styles.errorText}>{editError}</Text>}
 
       <Text style={[styles.metaLabel, styles.systemHeader]}>System groups</Text>
-      <Text style={styles.systemCaption}>Built in — can be unassigned from products, but not deleted.</Text>
+      <Text style={styles.systemCaption}>Built in - can be unassigned from products, but not deleted.</Text>
       <View style={styles.chipWrap}>
         {systemGroups.map((group) => (
           <GroupChip key={group.id} label={group.name} />
