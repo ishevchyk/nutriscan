@@ -73,3 +73,29 @@ async def test_get_products_list_includes_groups_per_product(client, auth_header
     by_id = {p["id"]: p["groups"] for p in resp.json()}
     assert [g["id"] for g in by_id[p1["id"]]] == [group["id"]]
     assert by_id[p2["id"]] == []
+
+
+async def test_product_notes_keep_rich_text_markup(client, auth_headers):
+    notes = "<p>Buy at <strong>Silpo</strong></p><ul><li>keep refrigerated</li></ul>"
+    resp = await client.post("/products", json={"name": "Rich Notes", "notes": notes}, headers=auth_headers)
+    assert resp.status_code == 201
+    assert resp.json()["notes"] == notes
+
+
+async def test_product_notes_sanitized_on_create_and_update(client, auth_headers):
+    resp = await client.post(
+        "/products",
+        json={"name": "XSS", "notes": '<p onclick="x()">hi</p><script>alert(1)</script>'},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 201
+    product = resp.json()
+    assert product["notes"] == "<p>hi</p>"
+
+    patch = await client.patch(
+        f"/products/{product['id']}",
+        json={"notes": '<img src=x onerror=alert(1)><ol><li>step</li></ol>'},
+        headers=auth_headers,
+    )
+    assert patch.status_code == 200
+    assert patch.json()["notes"] == "<ol><li>step</li></ol>"

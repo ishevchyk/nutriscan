@@ -10,7 +10,7 @@ async def _create_recipe(client, headers, name="Test Recipe", ingredients=None):
 
 async def test_create_list_update_delete_portion(client, auth_headers):
     recipe = await _create_recipe(
-        client, auth_headers, ingredients=[{"name": "Base", "grams": 100, "calories": 200}]
+        client, auth_headers, ingredients=[{"name": "Base", "input_amount": 100, "calories": 200}]
     )
 
     create_resp = await client.post(
@@ -158,7 +158,7 @@ async def test_delete_portion_is_hard_delete_no_restore(client, auth_headers):
 async def test_embedded_portion_nutrition_matches_per_100g_times_grams(client, auth_headers):
     recipe = await _create_recipe(
         client, auth_headers,
-        ingredients=[{"name": "Base", "grams": 100, "calories": 200, "protein": 10, "fat": 5, "carbs": 20, "fiber": 2, "sugar": 5, "salt": 0.5}],
+        ingredients=[{"name": "Base", "input_amount": 100, "calories": 200, "protein": 10, "fat": 5, "carbs": 20, "fiber": 2, "sugar": 5, "salt": 0.5}],
     )
     portion = (
         await client.post(
