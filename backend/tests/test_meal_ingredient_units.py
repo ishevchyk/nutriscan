@@ -22,8 +22,8 @@ async def _create_product(client, headers, name="Test Product", **overrides):
     return resp.json()
 
 
-async def _create_recipe(client, headers, name="Test Recipe"):
-    resp = await client.post("/recipes", json={"name": name, "ingredients": []}, headers=headers)
+async def _create_meal(client, headers, name="Test Meal"):
+    resp = await client.post("/meals", json={"name": name, "ingredients": []}, headers=headers)
     return resp.json()
 
 
@@ -35,10 +35,10 @@ async def _save_conversion(product_id: str, unit: str, grams_per_unit: float) ->
 
 async def test_add_ingredient_gram_unit_uses_input_amount_directly(client, auth_headers):
     product = await _create_product(client, auth_headers)
-    recipe = await _create_recipe(client, auth_headers)
+    meal = await _create_meal(client, auth_headers)
 
     resp = await client.post(
-        f"/recipes/{recipe['id']}/ingredients",
+        f"/meals/{meal['id']}/ingredients",
         json={"product_id": product["id"], "input_amount": 150, "input_unit": "g"},
         headers=auth_headers,
     )
@@ -52,10 +52,10 @@ async def test_add_ingredient_gram_unit_uses_input_amount_directly(client, auth_
 async def test_add_ingredient_household_unit_uses_saved_conversion(client, auth_headers):
     sugar = await _create_product(client, auth_headers, name="Sugar")
     await _save_conversion(sugar["id"], "tbsp", 12.5)
-    recipe = await _create_recipe(client, auth_headers)
+    meal = await _create_meal(client, auth_headers)
 
     resp = await client.post(
-        f"/recipes/{recipe['id']}/ingredients",
+        f"/meals/{meal['id']}/ingredients",
         json={"product_id": sugar["id"], "input_amount": 3, "input_unit": "tbsp"},
         headers=auth_headers,
     )
@@ -73,15 +73,15 @@ async def test_conversion_is_per_product_not_global(client, auth_headers):
     oil = await _create_product(client, auth_headers, name="Oil")
     await _save_conversion(sugar["id"], "tbsp", 12.5)
     await _save_conversion(oil["id"], "tbsp", 13.6)
-    recipe = await _create_recipe(client, auth_headers)
+    meal = await _create_meal(client, auth_headers)
 
     sugar_resp = await client.post(
-        f"/recipes/{recipe['id']}/ingredients",
+        f"/meals/{meal['id']}/ingredients",
         json={"product_id": sugar["id"], "input_amount": 3, "input_unit": "tbsp"},
         headers=auth_headers,
     )
     oil_resp = await client.post(
-        f"/recipes/{recipe['id']}/ingredients",
+        f"/meals/{meal['id']}/ingredients",
         json={"product_id": oil["id"], "input_amount": 3, "input_unit": "tbsp"},
         headers=auth_headers,
     )
@@ -91,10 +91,10 @@ async def test_conversion_is_per_product_not_global(client, auth_headers):
 
 async def test_add_ingredient_household_unit_missing_conversion_422(client, auth_headers):
     product = await _create_product(client, auth_headers)
-    recipe = await _create_recipe(client, auth_headers)
+    meal = await _create_meal(client, auth_headers)
 
     resp = await client.post(
-        f"/recipes/{recipe['id']}/ingredients",
+        f"/meals/{meal['id']}/ingredients",
         json={"product_id": product["id"], "input_amount": 2, "input_unit": "cup"},
         headers=auth_headers,
     )
@@ -103,10 +103,10 @@ async def test_add_ingredient_household_unit_missing_conversion_422(client, auth
 
 
 async def test_add_unlinked_ingredient_household_unit_requires_grams(client, auth_headers):
-    recipe = await _create_recipe(client, auth_headers)
+    meal = await _create_meal(client, auth_headers)
 
     missing_grams = await client.post(
-        f"/recipes/{recipe['id']}/ingredients",
+        f"/meals/{meal['id']}/ingredients",
         json={"name": "Homemade jam", "calories": 250, "input_amount": 2, "input_unit": "tbsp"},
         headers=auth_headers,
     )
@@ -114,7 +114,7 @@ async def test_add_unlinked_ingredient_household_unit_requires_grams(client, aut
     assert missing_grams.json()["detail"]["error_code"] == "grams_required"
 
     with_grams = await client.post(
-        f"/recipes/{recipe['id']}/ingredients",
+        f"/meals/{meal['id']}/ingredients",
         json={"name": "Homemade jam", "calories": 250, "input_amount": 2, "input_unit": "tbsp", "grams": 30},
         headers=auth_headers,
     )
@@ -128,10 +128,10 @@ async def test_add_unlinked_ingredient_household_unit_requires_grams(client, aut
 async def test_patch_input_amount_recomputes_grams(client, auth_headers):
     sugar = await _create_product(client, auth_headers, name="Sugar")
     await _save_conversion(sugar["id"], "tbsp", 12.5)
-    recipe = await _create_recipe(client, auth_headers)
+    meal = await _create_meal(client, auth_headers)
     ingredient = (
         await client.post(
-            f"/recipes/{recipe['id']}/ingredients",
+            f"/meals/{meal['id']}/ingredients",
             json={"product_id": sugar["id"], "input_amount": 1, "input_unit": "tbsp"},
             headers=auth_headers,
         )
@@ -139,7 +139,7 @@ async def test_patch_input_amount_recomputes_grams(client, auth_headers):
     assert ingredient["grams"] == pytest.approx(12.5)
 
     resp = await client.patch(
-        f"/recipes/{recipe['id']}/ingredients/{ingredient['id']}",
+        f"/meals/{meal['id']}/ingredients/{ingredient['id']}",
         json={"input_amount": 4},
         headers=auth_headers,
     )
@@ -152,17 +152,17 @@ async def test_patch_input_amount_recomputes_grams(client, auth_headers):
 
 async def test_patch_input_unit_without_saved_conversion_422(client, auth_headers):
     sugar = await _create_product(client, auth_headers, name="Sugar")
-    recipe = await _create_recipe(client, auth_headers)
+    meal = await _create_meal(client, auth_headers)
     ingredient = (
         await client.post(
-            f"/recipes/{recipe['id']}/ingredients",
+            f"/meals/{meal['id']}/ingredients",
             json={"product_id": sugar["id"], "input_amount": 100, "input_unit": "g"},
             headers=auth_headers,
         )
     ).json()
 
     resp = await client.patch(
-        f"/recipes/{recipe['id']}/ingredients/{ingredient['id']}",
+        f"/meals/{meal['id']}/ingredients/{ingredient['id']}",
         json={"input_unit": "cup"},
         headers=auth_headers,
     )
@@ -171,17 +171,17 @@ async def test_patch_input_unit_without_saved_conversion_422(client, auth_header
 
 
 async def test_direct_grams_patch_without_input_fields_still_a_manual_override(client, auth_headers):
-    recipe = await _create_recipe(client, auth_headers)
+    meal = await _create_meal(client, auth_headers)
     ingredient = (
         await client.post(
-            f"/recipes/{recipe['id']}/ingredients",
+            f"/meals/{meal['id']}/ingredients",
             json={"name": "Manual thing", "calories": 10, "input_amount": 100, "input_unit": "g"},
             headers=auth_headers,
         )
     ).json()
 
     resp = await client.patch(
-        f"/recipes/{recipe['id']}/ingredients/{ingredient['id']}",
+        f"/meals/{meal['id']}/ingredients/{ingredient['id']}",
         json={"grams": 42},
         headers=auth_headers,
     )
@@ -192,10 +192,10 @@ async def test_direct_grams_patch_without_input_fields_still_a_manual_override(c
     assert body["input_unit"] == "g"
 
 
-async def test_add_ingredient_recipe_ownership_404(client, auth_headers, second_user_headers):
-    recipe = await _create_recipe(client, second_user_headers)
+async def test_add_ingredient_meal_ownership_404(client, auth_headers, second_user_headers):
+    meal = await _create_meal(client, second_user_headers)
     resp = await client.post(
-        f"/recipes/{recipe['id']}/ingredients",
+        f"/meals/{meal['id']}/ingredients",
         json={"name": "Not yours", "calories": 1, "input_amount": 10, "input_unit": "g"},
         headers=auth_headers,
     )

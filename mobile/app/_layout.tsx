@@ -82,18 +82,18 @@ export default function RootLayout() {
                     }}
                 />
                 <Stack.Screen
-                    name="add-recipe"
+                    name="add-meal"
                     options={{
                         header: () => (
-                            <ScreenHeader headerTitle="Add Recipe" rightAction={backAction('Recipes')}/>
+                            <ScreenHeader headerTitle="Add Meal" rightAction={backAction('Meals')}/>
                         ),
                     }}
                 />
                 <Stack.Screen
-                    name="recipe/[id]"
+                    name="meal/[id]"
                     options={{
                         header: () => (
-                            <ScreenHeader headerTitle="Recipe" rightAction={backAction('Recipes')}/>
+                            <ScreenHeader headerTitle="Meal" rightAction={backAction('Meals')}/>
                         ),
                     }}
                 />

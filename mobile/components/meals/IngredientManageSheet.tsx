@@ -46,7 +46,7 @@ export function IngredientManageSheet({
   }
 
   function confirmRemove() {
-    Alert.alert(`Remove "${ingredient!.name}"?`, 'This ingredient will be removed from the recipe.', [
+    Alert.alert(`Remove "${ingredient!.name}"?`, 'This ingredient will be removed from the meal.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Remove', style: 'destructive', onPress: onRemove },
     ]);
@@ -126,7 +126,7 @@ export function IngredientManageSheet({
           )}
 
           <Pressable style={styles.removeRow} onPress={confirmRemove}>
-            <Text style={styles.removeText}>Remove from recipe</Text>
+            <Text style={styles.removeText}>Remove from meal</Text>
           </Pressable>
         </View>
       ) : (

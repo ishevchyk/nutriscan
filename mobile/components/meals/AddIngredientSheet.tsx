@@ -33,7 +33,7 @@ export function AddIngredientSheet({ visible, onClose, onChooseFromLibrary, onAd
           <View style={styles.optionText}>
             <Text style={styles.optionTitle}>Add product</Text>
             <Text style={styles.optionDescription}>
-              Enter a new product - save it to the library or to this recipe only
+              Enter a new product - save it to the library or to this meal only
             </Text>
           </View>
         </Pressable>
