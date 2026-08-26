@@ -34,11 +34,11 @@ export default function TabsLayout() {
                     <MaterialDesignIcons name={"barley"} size={20} color={focused ? colors.primary : colors.surface}/>
                 ),
             }}/>
-            <Tabs.Screen name="recipes" options={{
+            <Tabs.Screen name="meals" options={{
                 header: () => (
                     <ScreenHeader
-                        headerTitle="Recipes"
-                        rightAction={{label: '+ ADD', onPress: () => router.push('/add-recipe')}}
+                        headerTitle="Meals"
+                        rightAction={{label: '+ ADD', onPress: () => router.push('/add-meal')}}
                     />
                 ),
                 tabBarIcon: ({focused}) => (

@@ -4,7 +4,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { Radii, Spacing, ThemeColors, Typography } from '../constants/theme';
 import { useThemeColor } from '../hooks/useThemeColor';
 import { Product, useProductStore, DELETED_RETENTION_DAYS } from '../store/productStore';
-import { RecipeSummary, useRecipeStore } from '../store/recipeStore';
+import { MealSummary, useMealStore } from '../store/mealStore';
 import { daysUntilPurge } from '../utils/formatUtils';
 import { ProductCardBase } from '../components/products/ProductCardBase';
 
@@ -12,14 +12,14 @@ const URGENT_THRESHOLD_DAYS = 7;
 
 export default function RecentlyDeletedScreen() {
   const { deletedProducts, deletedLoaded, loadDeletedProducts, restoreProduct } = useProductStore();
-  const { deletedRecipes, deletedLoaded: deletedRecipesLoaded, loadDeletedRecipes, restoreRecipe } = useRecipeStore();
+  const { deletedMeals, deletedLoaded: deletedMealsLoaded, loadDeletedMeals, restoreMeal } = useMealStore();
   const [loading, setLoading] = useState(true);
   const [restoringId, setRestoringId] = useState<string | null>(null);
   const colors = useThemeColor();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   useEffect(() => {
-    Promise.all([loadDeletedProducts(), loadDeletedRecipes()]).finally(() => setLoading(false));
+    Promise.all([loadDeletedProducts(), loadDeletedMeals()]).finally(() => setLoading(false));
   }, []);
 
   async function handleRestoreProduct(id: string) {
@@ -31,10 +31,10 @@ export default function RecentlyDeletedScreen() {
     }
   }
 
-  async function handleRestoreRecipe(id: string) {
+  async function handleRestoreMeal(id: string) {
     setRestoringId(id);
     try {
-      await restoreRecipe(id);
+      await restoreMeal(id);
     } finally {
       setRestoringId(null);
     }
@@ -71,7 +71,7 @@ export default function RecentlyDeletedScreen() {
     );
   }
 
-  function renderRecipe(item: RecipeSummary) {
+  function renderMeal(item: MealSummary) {
     const isRestoring = restoringId === item.id;
 
     return (
@@ -83,7 +83,7 @@ export default function RecentlyDeletedScreen() {
             <Text style={styles.purgeLabel}>UPDATED {new Date(item.updated_at).toLocaleDateString()}</Text>
             <Pressable
               style={[styles.restoreButton, isRestoring && styles.restoreButtonDisabled]}
-              onPress={() => handleRestoreRecipe(item.id)}
+              onPress={() => handleRestoreMeal(item.id)}
               disabled={isRestoring}
             >
               <Text style={styles.restoreButtonText}>{isRestoring ? 'RESTORING…' : 'RESTORE'}</Text>
@@ -101,7 +101,7 @@ export default function RecentlyDeletedScreen() {
           <View style={styles.bannerDot} />
           <Text style={styles.bannerText}>
             Deleted products are retained for <Text style={styles.bannerBold}>{DELETED_RETENTION_DAYS} days</Text>. Restore
-            them any time before permanent purge. Recipe portions delete instantly and cannot be restored.
+            them any time before permanent purge. Meal portions delete instantly and cannot be restored.
           </Text>
         </View>
 
@@ -118,13 +118,13 @@ export default function RecentlyDeletedScreen() {
           </>
         )}
 
-        {deletedRecipesLoaded && (
+        {deletedMealsLoaded && (
           <>
-            <Text style={[styles.sectionHeader, styles.sectionSpacing]}>Recipes</Text>
-            {deletedRecipes.length === 0 ? (
+            <Text style={[styles.sectionHeader, styles.sectionSpacing]}>Meals</Text>
+            {deletedMeals.length === 0 ? (
               <Text style={styles.placeholder}>Nothing here yet.</Text>
             ) : (
-              deletedRecipes.map(renderRecipe)
+              deletedMeals.map(renderMeal)
             )}
           </>
         )}

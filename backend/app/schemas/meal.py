@@ -4,10 +4,10 @@ from datetime import datetime
 from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
 
 from app.sanitize import sanitize_rich_text
-from app.schemas.recipe_portion import RecipePortionOut, _validate_positive_grams
+from app.schemas.meal_portion import MealPortionOut, _validate_positive_grams
 
 
-class RecipeIngredientIn(BaseModel):
+class MealIngredientIn(BaseModel):
     """Two accepted shapes: {product_id, input_amount, input_unit} to link a saved
     product (its current name/brand/macros are copied into the snapshot
     server-side, so any snapshot fields sent here are ignored), or {name,
@@ -50,7 +50,7 @@ class RecipeIngredientIn(BaseModel):
         return self
 
 
-class RecipeIngredientOut(BaseModel):
+class MealIngredientOut(BaseModel):
     id: uuid.UUID
     product_id: uuid.UUID | None
     name: str
@@ -74,8 +74,8 @@ class RecipeIngredientOut(BaseModel):
         return self.product_id is not None
 
 
-class RecipeIngredientPatch(BaseModel):
-    """For PATCH /recipes/:id/ingredients/:ingredient_id. Every field is optional;
+class MealIngredientPatch(BaseModel):
+    """For PATCH /meals/:id/ingredients/:ingredient_id. Every field is optional;
     presence in the request (via model_dump(exclude_unset=True) in the route), not
     value, drives relink/unlink/edit branching. `grams` stays directly editable
     for a manual snapshot tweak that leaves input_amount/input_unit alone;
@@ -109,12 +109,12 @@ class RecipeIngredientPatch(BaseModel):
         return v if v is None else _validate_positive_grams(v)
 
 
-class RecipeCreate(BaseModel):
+class MealCreate(BaseModel):
     name: str
     description: str | None = None
     photo_url: str | None = None
     servings: int = Field(default=1, ge=1)
-    ingredients: list[RecipeIngredientIn] = []
+    ingredients: list[MealIngredientIn] = []
 
     @field_validator("description")
     @classmethod
@@ -122,12 +122,12 @@ class RecipeCreate(BaseModel):
         return sanitize_rich_text(v)
 
 
-class RecipeUpdate(BaseModel):
+class MealUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
     photo_url: str | None = None
     servings: int | None = Field(default=None, ge=1)
-    ingredients: list[RecipeIngredientIn] | None = None  # None = untouched; [] = clear all
+    ingredients: list[MealIngredientIn] | None = None  # None = untouched; [] = clear all
 
     @field_validator("description")
     @classmethod
@@ -145,12 +145,12 @@ class NutritionOut(BaseModel):
     salt: float
 
 
-class RecipeNutritionOut(BaseModel):
+class MealNutritionOut(BaseModel):
     per_meal: NutritionOut
     per_100g: NutritionOut
 
 
-class RecipeListItemOut(BaseModel):
+class MealListItemOut(BaseModel):
     id: uuid.UUID
     name: str
     photo_url: str | None
@@ -159,11 +159,11 @@ class RecipeListItemOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class RecipePortionDetailOut(RecipePortionOut):
+class MealPortionDetailOut(MealPortionOut):
     nutrition: NutritionOut
 
 
-class RecipeDetailOut(BaseModel):
+class MealDetailOut(BaseModel):
     id: uuid.UUID
     name: str
     description: str | None
@@ -171,8 +171,8 @@ class RecipeDetailOut(BaseModel):
     servings: int
     created_at: datetime
     updated_at: datetime
-    ingredients: list[RecipeIngredientOut]
-    nutrition: RecipeNutritionOut
-    portions: list[RecipePortionDetailOut]
+    ingredients: list[MealIngredientOut]
+    nutrition: MealNutritionOut
+    portions: list[MealPortionDetailOut]
 
     model_config = {"from_attributes": True}

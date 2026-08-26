@@ -1,4 +1,4 @@
-import { NutritionOut } from '../store/recipeStore';
+import { NutritionOut } from '../store/mealStore';
 
 export type IngredientNutritionInput = {
   grams: number;

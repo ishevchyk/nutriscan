@@ -1,7 +1,7 @@
-import { RecipeIngredient } from '../../store/recipeStore';
+import { MealIngredient } from '../../store/mealStore';
 
 /** Normalized ingredient view-model rendered by IngredientCard and the sheets.
- * Server ingredients map with key = id; add-recipe drafts generate local keys
+ * Server ingredients map with key = id; add-meal drafts generate local keys
  * and snapshot the picked product's macros so nutrition renders client-side. */
 export type IngredientVM = {
   key: string;
@@ -21,7 +21,7 @@ export type IngredientVM = {
   salt: number | null;
 };
 
-export function toIngredientVM(ingredient: RecipeIngredient): IngredientVM {
+export function toIngredientVM(ingredient: MealIngredient): IngredientVM {
   return {
     key: ingredient.id,
     product_id: ingredient.product_id,

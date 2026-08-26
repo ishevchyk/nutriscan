@@ -12,8 +12,8 @@ import { ProductFormFields } from '../components/products/ProductFormFields';
 
 export default function AddProduct() {
     const router = useRouter();
-    const { forRecipe } = useLocalSearchParams<{ forRecipe?: string }>();
-    const isForRecipe = forRecipe === '1';
+    const { forMeal } = useLocalSearchParams<{ forMeal?: string }>();
+    const isForMeal = forMeal === '1';
     const { addProduct, assignProductToGroups } = useProductStore();
     const { groups, loaded: groupsLoaded, fetchGroups } = useGroupStore();
     const colors = useThemeColor();
@@ -26,16 +26,16 @@ export default function AddProduct() {
         }
     }, [groupsLoaded]);
 
-    // Resolves the addProductForRecipe() promise with null if the screen is
+    // Resolves the addProductForMeal() promise with null if the screen is
     // dismissed (e.g. swipe-back) without an explicit save action.
     useEffect(() => {
-        if (!isForRecipe) return;
+        if (!isForMeal) return;
         return () => {
             if (usePickerStore.getState().addProductResolver) {
                 usePickerStore.getState().resolveAddProduct(null);
             }
         };
-    }, [isForRecipe]);
+    }, [isForMeal]);
 
     const { control, handleSubmit, formState: { errors } } = useProductForm();
 
@@ -48,14 +48,14 @@ export default function AddProduct() {
         if (selectedGroupIds.length > 0) {
             await assignProductToGroups(product.id, selectedGroupIds);
         }
-        if (isForRecipe) {
+        if (isForMeal) {
             usePickerStore.getState().resolveAddProduct({ kind: 'library', product });
         }
         router.back();
     }
 
-    function onSubmitRecipeOnly(data: ProductFormValues) {
-        usePickerStore.getState().resolveAddProduct({ kind: 'recipeOnly', values: data });
+    function onSubmitMealOnly(data: ProductFormValues) {
+        usePickerStore.getState().resolveAddProduct({ kind: 'mealOnly', values: data });
         router.back();
     }
 
@@ -64,18 +64,18 @@ export default function AddProduct() {
             <ProductFormFields
                 control={control}
                 errors={errors}
-                groups={isForRecipe ? [] : groups}
+                groups={isForMeal ? [] : groups}
                 selectedGroupIds={selectedGroupIds}
                 onToggleGroup={toggleGroup}
             />
 
             <Pressable style={styles.button} onPress={handleSubmit(onSubmit)}>
-                <Text style={styles.buttonText}>{isForRecipe ? 'Save to Library' : 'Save'}</Text>
+                <Text style={styles.buttonText}>{isForMeal ? 'Save to Library' : 'Save'}</Text>
             </Pressable>
 
-            {isForRecipe && (
-                <Pressable style={styles.secondaryButton} onPress={handleSubmit(onSubmitRecipeOnly)}>
-                    <Text style={styles.secondaryButtonText}>Save to recipe only</Text>
+            {isForMeal && (
+                <Pressable style={styles.secondaryButton} onPress={handleSubmit(onSubmitMealOnly)}>
+                    <Text style={styles.secondaryButtonText}>Save to meal only</Text>
                 </Pressable>
             )}
         </ScrollView>

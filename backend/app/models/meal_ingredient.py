@@ -7,19 +7,19 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
 
 
-class RecipeIngredient(Base):
-    """A recipe ingredient is a self-contained nutrition snapshot, not a live
+class MealIngredient(Base):
+    """A meal ingredient is a self-contained nutrition snapshot, not a live
     pointer to a product. `product_id` is an optional link: linking (on create,
     or via an explicit relink) copies the product's current values into the
     snapshot fields below, but the snapshot is independent afterward and can
     drift or be hand-edited. If the linked product is later purged, `product_id`
     is set to NULL (ondelete="SET NULL") and the snapshot is left untouched."""
 
-    __tablename__ = "recipe_ingredients"
+    __tablename__ = "meal_ingredients"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    recipe_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("recipes.id", ondelete="CASCADE"), nullable=False, index=True
+    meal_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("meals.id", ondelete="CASCADE"), nullable=False, index=True
     )
     product_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("products.id", ondelete="SET NULL"), nullable=True, index=True

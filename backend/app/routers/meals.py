@@ -8,48 +8,48 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies import get_current_user, get_db
 from app.models.product import Product
 from app.models.product_unit_conversions import ProductUnitConversion
-from app.models.recipe import Recipe
-from app.models.recipe_ingredient import RecipeIngredient
-from app.models.recipe_portion import RecipePortion
+from app.models.meal import Meal
+from app.models.meal_ingredient import MealIngredient
+from app.models.meal_portion import MealPortion
 from app.models.user import User
-from app.nutrition import MACROS, calculate_recipe_nutrition
-from app.schemas.recipe import (
-    RecipeCreate,
-    RecipeDetailOut,
-    RecipeIngredientIn,
-    RecipeIngredientOut,
-    RecipeIngredientPatch,
-    RecipeListItemOut,
-    RecipeUpdate,
+from app.nutrition import MACROS, calculate_meal_nutrition
+from app.schemas.meal import (
+    MealCreate,
+    MealDetailOut,
+    MealIngredientIn,
+    MealIngredientOut,
+    MealIngredientPatch,
+    MealListItemOut,
+    MealUpdate,
 )
-from app.schemas.recipe_portion import RecipePortionCreate, RecipePortionOut, RecipePortionUpdate
+from app.schemas.meal_portion import MealPortionCreate, MealPortionOut, MealPortionUpdate
 
-router = APIRouter(prefix="/recipes", tags=["recipes"])
+router = APIRouter(prefix="/meals", tags=["meals"])
 
 
-async def _get_owned_recipe(db: AsyncSession, recipe_id: UUID, current_user: User) -> Recipe:
+async def _get_owned_meal(db: AsyncSession, meal_id: UUID, current_user: User) -> Meal:
     result = await db.execute(
-        select(Recipe).where(
-            Recipe.id == recipe_id, Recipe.user_id == current_user.id, Recipe.deleted_at.is_(None)
+        select(Meal).where(
+            Meal.id == meal_id, Meal.user_id == current_user.id, Meal.deleted_at.is_(None)
         )
     )
-    recipe = result.scalar_one_or_none()
-    if not recipe:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recipe not found")
-    return recipe
+    meal = result.scalar_one_or_none()
+    if not meal:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meal not found")
+    return meal
 
 
 async def _get_owned_portion(
-    db: AsyncSession, recipe_id: UUID, portion_id: UUID, current_user: User
-) -> RecipePortion:
+    db: AsyncSession, meal_id: UUID, portion_id: UUID, current_user: User
+) -> MealPortion:
     result = await db.execute(
-        select(RecipePortion)
-        .join(Recipe, Recipe.id == RecipePortion.recipe_id)
+        select(MealPortion)
+        .join(Meal, Meal.id == MealPortion.meal_id)
         .where(
-            RecipePortion.id == portion_id,
-            RecipePortion.recipe_id == recipe_id,
-            Recipe.user_id == current_user.id,
-            Recipe.deleted_at.is_(None),
+            MealPortion.id == portion_id,
+            MealPortion.meal_id == meal_id,
+            Meal.user_id == current_user.id,
+            Meal.deleted_at.is_(None),
         )
     )
     portion = result.scalar_one_or_none()
@@ -59,16 +59,16 @@ async def _get_owned_portion(
 
 
 async def _get_owned_ingredient(
-    db: AsyncSession, recipe_id: UUID, ingredient_id: UUID, current_user: User
-) -> RecipeIngredient:
+    db: AsyncSession, meal_id: UUID, ingredient_id: UUID, current_user: User
+) -> MealIngredient:
     result = await db.execute(
-        select(RecipeIngredient)
-        .join(Recipe, Recipe.id == RecipeIngredient.recipe_id)
+        select(MealIngredient)
+        .join(Meal, Meal.id == MealIngredient.meal_id)
         .where(
-            RecipeIngredient.id == ingredient_id,
-            RecipeIngredient.recipe_id == recipe_id,
-            Recipe.user_id == current_user.id,
-            Recipe.deleted_at.is_(None),
+            MealIngredient.id == ingredient_id,
+            MealIngredient.meal_id == meal_id,
+            Meal.user_id == current_user.id,
+            Meal.deleted_at.is_(None),
         )
     )
     ingredient = result.scalar_one_or_none()
@@ -77,46 +77,46 @@ async def _get_owned_ingredient(
     return ingredient
 
 
-async def _attach_ingredients(db: AsyncSession, recipes: list[Recipe]) -> None:
-    if not recipes:
+async def _attach_ingredients(db: AsyncSession, meals: list[Meal]) -> None:
+    if not meals:
         return
-    recipe_ids = [r.id for r in recipes]
-    result = await db.execute(select(RecipeIngredient).where(RecipeIngredient.recipe_id.in_(recipe_ids)))
-    by_recipe: dict[UUID, list[RecipeIngredient]] = {rid: [] for rid in recipe_ids}
+    meal_ids = [m.id for m in meals]
+    result = await db.execute(select(MealIngredient).where(MealIngredient.meal_id.in_(meal_ids)))
+    by_meal: dict[UUID, list[MealIngredient]] = {mid: [] for mid in meal_ids}
     for ingredient in result.scalars().all():
-        by_recipe[ingredient.recipe_id].append(ingredient)
-    for recipe in recipes:
-        recipe.ingredients = by_recipe.get(recipe.id, [])
+        by_meal[ingredient.meal_id].append(ingredient)
+    for meal in meals:
+        meal.ingredients = by_meal.get(meal.id, [])
 
 
-async def _attach_portions(db: AsyncSession, recipes: list[Recipe]) -> None:
-    if not recipes:
+async def _attach_portions(db: AsyncSession, meals: list[Meal]) -> None:
+    if not meals:
         return
-    recipe_ids = [r.id for r in recipes]
-    result = await db.execute(select(RecipePortion).where(RecipePortion.recipe_id.in_(recipe_ids)))
-    by_recipe: dict[UUID, list[RecipePortion]] = {rid: [] for rid in recipe_ids}
+    meal_ids = [m.id for m in meals]
+    result = await db.execute(select(MealPortion).where(MealPortion.meal_id.in_(meal_ids)))
+    by_meal: dict[UUID, list[MealPortion]] = {mid: [] for mid in meal_ids}
     for portion in result.scalars().all():
-        by_recipe[portion.recipe_id].append(portion)
-    for recipe in recipes:
-        recipe.portions = by_recipe.get(recipe.id, [])
+        by_meal[portion.meal_id].append(portion)
+    for meal in meals:
+        meal.portions = by_meal.get(meal.id, [])
 
 
-async def _build_recipe_detail(db: AsyncSession, recipe: Recipe) -> Recipe:
+async def _build_meal_detail(db: AsyncSession, meal: Meal) -> Meal:
     """Attach ingredients/portions and compute nutrition fresh from current rows.
     Any write (create, replace-all, relink, manual edit, portion change) is
     reflected on the very next call to this — there's no cached/stale nutrition
     to invalidate."""
-    await _attach_ingredients(db, [recipe])
-    await _attach_portions(db, [recipe])
-    nutrition = calculate_recipe_nutrition(recipe.ingredients, recipe.portions)
-    recipe.nutrition = {"per_meal": nutrition["per_meal"], "per_100g": nutrition["per_100g"]}
-    for portion in recipe.portions:
+    await _attach_ingredients(db, [meal])
+    await _attach_portions(db, [meal])
+    nutrition = calculate_meal_nutrition(meal.ingredients, meal.portions)
+    meal.nutrition = {"per_meal": nutrition["per_meal"], "per_100g": nutrition["per_100g"]}
+    for portion in meal.portions:
         portion.nutrition = nutrition["portions"][portion.id]
-    return recipe
+    return meal
 
 
 async def _resolve_ingredient_snapshot(
-    db: AsyncSession, item: RecipeIngredientIn, current_user: User
+    db: AsyncSession, item: MealIngredientIn, current_user: User
 ) -> dict:
     """Linked ingredients (product_id set) always take their snapshot from the
     product's current values -- any name/brand/macro fields also sent on `item`
@@ -193,44 +193,44 @@ async def _resolve_ingredient_grams(
     return grams
 
 
-@router.get("", response_model=list[RecipeListItemOut])
-async def list_recipes(
+@router.get("", response_model=list[MealListItemOut])
+async def list_meals(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(Recipe)
-        .where(Recipe.user_id == current_user.id, Recipe.deleted_at.is_(None))
-        .order_by(Recipe.updated_at.desc())
+        select(Meal)
+        .where(Meal.user_id == current_user.id, Meal.deleted_at.is_(None))
+        .order_by(Meal.updated_at.desc())
     )
     return result.scalars().all()
 
 
-@router.get("/deleted", response_model=list[RecipeListItemOut])
-async def list_deleted_recipes(
+@router.get("/deleted", response_model=list[MealListItemOut])
+async def list_deleted_meals(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(Recipe).where(Recipe.user_id == current_user.id, Recipe.deleted_at.is_not(None))
+        select(Meal).where(Meal.user_id == current_user.id, Meal.deleted_at.is_not(None))
     )
     return result.scalars().all()
 
 
-@router.post("", response_model=RecipeDetailOut, status_code=status.HTTP_201_CREATED)
-async def create_recipe(
-    body: RecipeCreate,
+@router.post("", response_model=MealDetailOut, status_code=status.HTTP_201_CREATED)
+async def create_meal(
+    body: MealCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    recipe = Recipe(
+    meal = Meal(
         name=body.name,
         description=body.description,
         photo_url=body.photo_url,
         servings=body.servings,
         user_id=current_user.id,
     )
-    db.add(recipe)
+    db.add(meal)
     await db.flush()
     for item in body.ingredients:
         snapshot = await _resolve_ingredient_snapshot(db, item, current_user)
@@ -242,8 +242,8 @@ async def create_recipe(
             grams=item.grams,
         )
         db.add(
-            RecipeIngredient(
-                recipe_id=recipe.id,
+            MealIngredient(
+                meal_id=meal.id,
                 grams=grams,
                 input_amount=item.input_amount,
                 input_unit=item.input_unit,
@@ -251,34 +251,34 @@ async def create_recipe(
             )
         )
     await db.commit()
-    await db.refresh(recipe)
-    return await _build_recipe_detail(db, recipe)
+    await db.refresh(meal)
+    return await _build_meal_detail(db, meal)
 
 
-@router.get("/{recipe_id}", response_model=RecipeDetailOut)
-async def get_recipe(
-    recipe_id: UUID,
+@router.get("/{meal_id}", response_model=MealDetailOut)
+async def get_meal(
+    meal_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    recipe = await _get_owned_recipe(db, recipe_id, current_user)
-    return await _build_recipe_detail(db, recipe)
+    meal = await _get_owned_meal(db, meal_id, current_user)
+    return await _build_meal_detail(db, meal)
 
 
-@router.patch("/{recipe_id}", response_model=RecipeDetailOut)
-async def update_recipe(
-    recipe_id: UUID,
-    body: RecipeUpdate,
+@router.patch("/{meal_id}", response_model=MealDetailOut)
+async def update_meal(
+    meal_id: UUID,
+    body: MealUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    recipe = await _get_owned_recipe(db, recipe_id, current_user)
+    meal = await _get_owned_meal(db, meal_id, current_user)
     updates = body.model_dump(exclude_unset=True, exclude={"ingredients"})
     for field, value in updates.items():
-        setattr(recipe, field, value)
+        setattr(meal, field, value)
 
     if body.ingredients is not None:
-        await db.execute(delete(RecipeIngredient).where(RecipeIngredient.recipe_id == recipe.id))
+        await db.execute(delete(MealIngredient).where(MealIngredient.meal_id == meal.id))
         for item in body.ingredients:
             snapshot = await _resolve_ingredient_snapshot(db, item, current_user)
             grams = await _resolve_ingredient_grams(
@@ -289,8 +289,8 @@ async def update_recipe(
                 grams=item.grams,
             )
             db.add(
-                RecipeIngredient(
-                    recipe_id=recipe.id,
+                MealIngredient(
+                    meal_id=meal.id,
                     grams=grams,
                     input_amount=item.input_amount,
                     input_unit=item.input_unit,
@@ -299,51 +299,51 @@ async def update_recipe(
             )
 
     await db.commit()
-    await db.refresh(recipe)
-    return await _build_recipe_detail(db, recipe)
+    await db.refresh(meal)
+    return await _build_meal_detail(db, meal)
 
 
-@router.delete("/{recipe_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_recipe(
-    recipe_id: UUID,
+@router.delete("/{meal_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_meal(
+    meal_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    recipe = await _get_owned_recipe(db, recipe_id, current_user)
-    recipe.deleted_at = datetime.now(timezone.utc)
+    meal = await _get_owned_meal(db, meal_id, current_user)
+    meal.deleted_at = datetime.now(timezone.utc)
     await db.commit()
 
 
-@router.post("/{recipe_id}/restore", response_model=RecipeDetailOut)
-async def restore_recipe(
-    recipe_id: UUID,
+@router.post("/{meal_id}/restore", response_model=MealDetailOut)
+async def restore_meal(
+    meal_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(Recipe).where(
-            Recipe.id == recipe_id, Recipe.user_id == current_user.id, Recipe.deleted_at.is_not(None)
+        select(Meal).where(
+            Meal.id == meal_id, Meal.user_id == current_user.id, Meal.deleted_at.is_not(None)
         )
     )
-    recipe = result.scalar_one_or_none()
-    if not recipe:
+    meal = result.scalar_one_or_none()
+    if not meal:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Recipe not found in recently deleted"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Meal not found in recently deleted"
         )
-    recipe.deleted_at = None
+    meal.deleted_at = None
     await db.commit()
-    await db.refresh(recipe)
-    return await _build_recipe_detail(db, recipe)
+    await db.refresh(meal)
+    return await _build_meal_detail(db, meal)
 
 
-@router.post("/{recipe_id}/ingredients", response_model=RecipeIngredientOut, status_code=status.HTTP_201_CREATED)
+@router.post("/{meal_id}/ingredients", response_model=MealIngredientOut, status_code=status.HTTP_201_CREATED)
 async def add_ingredient(
-    recipe_id: UUID,
-    body: RecipeIngredientIn,
+    meal_id: UUID,
+    body: MealIngredientIn,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    recipe = await _get_owned_recipe(db, recipe_id, current_user)
+    meal = await _get_owned_meal(db, meal_id, current_user)
     snapshot = await _resolve_ingredient_snapshot(db, body, current_user)
     grams = await _resolve_ingredient_grams(
         db,
@@ -352,8 +352,8 @@ async def add_ingredient(
         input_unit=body.input_unit,
         grams=body.grams,
     )
-    ingredient = RecipeIngredient(
-        recipe_id=recipe.id,
+    ingredient = MealIngredient(
+        meal_id=meal.id,
         grams=grams,
         input_amount=body.input_amount,
         input_unit=body.input_unit,
@@ -365,11 +365,11 @@ async def add_ingredient(
     return ingredient
 
 
-@router.patch("/{recipe_id}/ingredients/{ingredient_id}", response_model=RecipeIngredientOut)
+@router.patch("/{meal_id}/ingredients/{ingredient_id}", response_model=MealIngredientOut)
 async def update_ingredient(
-    recipe_id: UUID,
+    meal_id: UUID,
     ingredient_id: UUID,
-    body: RecipeIngredientPatch,
+    body: MealIngredientPatch,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -379,7 +379,7 @@ async def update_ingredient(
     Sending input_amount and/or input_unit re-derives grams from whichever of
     the two didn't change (via _resolve_ingredient_grams); grams sent alone,
     with neither of those keys present, is still a direct manual override."""
-    ingredient = await _get_owned_ingredient(db, recipe_id, ingredient_id, current_user)
+    ingredient = await _get_owned_ingredient(db, meal_id, ingredient_id, current_user)
     updates = body.model_dump(exclude_unset=True)
 
     if "product_id" in updates:
@@ -426,55 +426,55 @@ async def update_ingredient(
     return ingredient
 
 
-@router.get("/{recipe_id}/portions", response_model=list[RecipePortionOut])
+@router.get("/{meal_id}/portions", response_model=list[MealPortionOut])
 async def list_portions(
-    recipe_id: UUID,
+    meal_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    await _get_owned_recipe(db, recipe_id, current_user)
-    result = await db.execute(select(RecipePortion).where(RecipePortion.recipe_id == recipe_id))
+    await _get_owned_meal(db, meal_id, current_user)
+    result = await db.execute(select(MealPortion).where(MealPortion.meal_id == meal_id))
     return result.scalars().all()
 
 
-@router.post("/{recipe_id}/portions", response_model=RecipePortionOut, status_code=status.HTTP_201_CREATED)
+@router.post("/{meal_id}/portions", response_model=MealPortionOut, status_code=status.HTTP_201_CREATED)
 async def create_portion(
-    recipe_id: UUID,
-    body: RecipePortionCreate,
+    meal_id: UUID,
+    body: MealPortionCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    await _get_owned_recipe(db, recipe_id, current_user)
+    await _get_owned_meal(db, meal_id, current_user)
     if body.is_default:
         await db.execute(
-            update(RecipePortion)
-            .where(RecipePortion.recipe_id == recipe_id, RecipePortion.is_default.is_(True))
+            update(MealPortion)
+            .where(MealPortion.meal_id == meal_id, MealPortion.is_default.is_(True))
             .values(is_default=False)
         )
-    portion = RecipePortion(recipe_id=recipe_id, name=body.name, grams=body.grams, is_default=body.is_default)
+    portion = MealPortion(meal_id=meal_id, name=body.name, grams=body.grams, is_default=body.is_default)
     db.add(portion)
     await db.commit()
     await db.refresh(portion)
     return portion
 
 
-@router.patch("/{recipe_id}/portions/{portion_id}", response_model=RecipePortionOut)
+@router.patch("/{meal_id}/portions/{portion_id}", response_model=MealPortionOut)
 async def update_portion(
-    recipe_id: UUID,
+    meal_id: UUID,
     portion_id: UUID,
-    body: RecipePortionUpdate,
+    body: MealPortionUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    portion = await _get_owned_portion(db, recipe_id, portion_id, current_user)
+    portion = await _get_owned_portion(db, meal_id, portion_id, current_user)
     updates = body.model_dump(exclude_unset=True)
     if updates.get("is_default") is True:
         await db.execute(
-            update(RecipePortion)
+            update(MealPortion)
             .where(
-                RecipePortion.recipe_id == recipe_id,
-                RecipePortion.is_default.is_(True),
-                RecipePortion.id != portion_id,
+                MealPortion.meal_id == meal_id,
+                MealPortion.is_default.is_(True),
+                MealPortion.id != portion_id,
             )
             .values(is_default=False)
         )
@@ -485,15 +485,15 @@ async def update_portion(
     return portion
 
 
-@router.delete("/{recipe_id}/portions/{portion_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{meal_id}/portions/{portion_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_portion(
-    recipe_id: UUID,
+    meal_id: UUID,
     portion_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    # recipe_portions is hard-deleted (backend/CLAUDE.md's explicit exception to
+    # meal_portions is hard-deleted (backend/CLAUDE.md's explicit exception to
     # the soft-delete rule) -- a real row delete, not deleted_at, no restore path.
-    portion = await _get_owned_portion(db, recipe_id, portion_id, current_user)
+    portion = await _get_owned_portion(db, meal_id, portion_id, current_user)
     await db.delete(portion)
     await db.commit()
