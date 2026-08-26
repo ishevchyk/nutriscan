@@ -6,6 +6,7 @@ from app.models.product_group import ProductGroup
 from app.models.recipe import Recipe
 from app.models.recipe_ingredient import RecipeIngredient
 from app.models.recipe_portion import RecipePortion
+from app.models.product_unit_conversions import ProductUnitConversion
 
 __all__ = [
     "User",
@@ -16,4 +17,5 @@ __all__ = [
     "Recipe",
     "RecipeIngredient",
     "RecipePortion",
+    "ProductUnitConversion",
 ]

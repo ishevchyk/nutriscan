@@ -1,8 +1,9 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
+from app.sanitize import sanitize_rich_text
 from app.schemas.group import GroupOut
 
 
@@ -22,6 +23,11 @@ class ProductCreate(BaseModel):
     notes: str | None = None
     source: str | None = None
 
+    @field_validator("notes")
+    @classmethod
+    def sanitize_notes(cls, v: str | None) -> str | None:
+        return sanitize_rich_text(v)
+
 
 class ProductUpdate(BaseModel):
     name: str | None = None
@@ -38,6 +44,11 @@ class ProductUpdate(BaseModel):
     serving_unit: str | None = None
     notes: str | None = None
     source: str | None = None
+
+    @field_validator("notes")
+    @classmethod
+    def sanitize_notes(cls, v: str | None) -> str | None:
+        return sanitize_rich_text(v)
 
 
 class ProductOut(BaseModel):
