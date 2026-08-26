@@ -42,6 +42,10 @@ NutriScan is a personal nutrition tracking app that lets users build a library o
 | Deletion model | Soft delete — 30-day recovery window (Recently Deleted), then hard delete via background job |
 | Social / sharing | TBD — personal-only for now, revisit later |
 | Calorie/macro goals | Single active goal set per user (calories, protein, fat, carbs), user-entered and editable at any time — no goal calculator yet, may add later |
+| Recipe ingredients | Each ingredient stores its own nutrition snapshot (name, brand, macros) and *optionally* links to a saved product — a recipe never requires every ingredient to exist in the Product Library |
+| Linked product deletion | If a linked product is hard-purged, the ingredient's `product_id` is set to `null` (not cascade-deleted) — the ingredient keeps its last-known name/macros, nothing in the recipe silently disappears |
+| Ingredient units | Users can enter ingredients in household units (tbsp, tsp, cup, piece, etc.), converted to grams via a per-product `grams_per_unit` factor — conversion is ingredient-specific (a tbsp of sugar ≠ a tbsp of oil), never a single global factor |
+| Display units (metric/imperial) | All data is stored and calculated in metric (grams) always; oz/lb display is a client-side formatting layer driven by `user_settings.units`, not a backend concern |
 
 ---
 
@@ -57,8 +61,8 @@ NutriScan is a personal nutrition tracking app that lets users build a library o
 ### 3.2 Product Groups
 - Every product can belong to one or more groups (many-to-many)
 - Two kinds of groups:
-  - **System groups** — a small built-in set shipped with the app (Dairy, Fruits, Breakfast, Snacks, etc.)
-  - **Custom groups** — user-created and named (e.g. "Meal prep staples", "Kid snacks")
+  - **System groups** - a small built-in set shipped with the app (Dairy, Fruits, Breakfast, Snacks, etc.)
+  - **Custom groups** - user-created and named (e.g. "Meal prep staples", "Kid snacks")
 - The Product Library view can show:
   - A flat "All Products" list with each product's group(s) shown as badges
   - A per-group filtered view
@@ -84,11 +88,16 @@ NutriScan is a personal nutrition tracking app that lets users build a library o
 - Chat history is ephemeral (per session, not persisted)
 
 ### 3.5 Recipes & Meal Nutrition
-- Build recipes by selecting products from the library and setting quantities
+- Build recipes by adding ingredients - each ingredient either links to a saved product from the library, or is entered directly with its own name/brand/macros (no library entry required). Most users will have far more recipes than saved products, so this is the common case, not an edge case.
+- Ingredient rows show whether they're linked to a saved product (checkmark) or not (neutral "not saved" state — never treated as an error)
+- Linked ingredients can be re-linked/swapped to a different product at any time (e.g. 72% butter → 82% butter, or one manufacturer's cottage cheese → another's); swapping refreshes that ingredient's macro snapshot and the recipe's nutrition recalculates
+- Unlinked ingredients can be promoted to a saved product ("Add to Product Library") straight from their existing snapshot data
+- Editing an ingredient's name/brand/macros directly is always available, independent of link state, and never changes or clears the product link
+- Ingredient quantity can be entered in grams directly, or in a household unit (tbsp, tsp, cup, piece, etc.) — household units convert to grams via a per-product conversion factor, since the same unit weighs differently per ingredient (a tbsp of sugar isn't a tbsp of oil). If a product has no saved conversion factor for the chosen unit yet, the user is prompted to enter one once; it's then reused everywhere that product is used with that unit.
 - Nutrition is auto-calculated in three views:
-  - **Per whole meal** — total macros for the entire recipe as written
-  - **Per 100g** — total macros ÷ total recipe grams × 100
-  - **Per custom portion** — any number of named portions per recipe (e.g. "1 slice", "1 bowl"), each just a gram amount; one portion can be marked default
+  - **Per whole meal** - total macros for the entire recipe as written
+  - **Per 100g** - total macros ÷ total recipe grams × 100
+  - **Per custom portion** - any number of named portions per recipe (e.g. "1 slice", "1 bowl"), each just a gram amount; one portion can be marked default
 - Users can create, rename, and delete portions on any recipe at any time
 - Create, edit, browse, and delete recipes
 - Each recipe has: name, description, ingredients (product + grams), one or more named portions, photo (optional)
@@ -96,9 +105,9 @@ NutriScan is a personal nutrition tracking app that lets users build a library o
 ### 3.6 Calorie & Macro Tracker
 - A dedicated **Log** page for tracking daily intake against personal goals
 - Three ways to log an entry:
-  - **From the Product Library** — pick a product, enter grams consumed
-  - **From Recipes** — pick a recipe and either a named portion or a custom gram amount; the recipe's ingredient list is shown with editable grams per ingredient (e.g. "used 50g cheese instead of the recipe's 70g"), and macros recompute live before saving. This only overrides that one logged entry — the recipe itself is untouched.
-  - **Manual entry** — type in calories/protein/fat/carbs directly, no product needed (e.g. for restaurant meals)
+  - **From the Product Library** - pick a product, enter grams consumed
+  - **From Recipes** - pick a recipe and either a named portion or a custom gram amount; the recipe's ingredient list is shown with editable grams per ingredient (e.g. "used 50g cheese instead of the recipe's 70g"), and macros recompute live before saving. This only overrides that one logged entry — the recipe itself is untouched.
+  - **Manual entry** - type in calories/protein/fat/carbs directly, no product needed (e.g. for restaurant meals)
 - Entries are grouped by meal (breakfast, lunch, dinner, snack) and by day
 - Daily summary shows totals vs. the user's active goal, per macro
 - **Goals**: one active set per user (calories, protein, fat, carbs), entered manually and editable any time. No goal calculator yet — planned for later (see Open Questions)
@@ -264,11 +273,35 @@ Note: the old single `portion_grams` field is replaced by `recipe_portions` belo
 
 ### recipe_ingredients
 ```sql
-id          UUID PRIMARY KEY
-recipe_id   UUID REFERENCES recipes(id)
-product_id  UUID REFERENCES products(id)
-grams       NUMERIC NOT NULL
+id            UUID PRIMARY KEY
+recipe_id     UUID REFERENCES recipes(id)
+product_id    UUID REFERENCES products(id) ON DELETE SET NULL   -- optional link; null = unlinked
+name          TEXT NOT NULL       -- snapshot, e.g. "President butter 82%"
+brand         TEXT
+calories      NUMERIC NOT NULL    -- per 100g, snapshot
+protein       NUMERIC NOT NULL
+fat           NUMERIC NOT NULL
+carbs         NUMERIC NOT NULL
+fiber         NUMERIC
+sugar         NUMERIC
+salt          NUMERIC
+input_amount  NUMERIC NOT NULL    -- raw quantity as entered, e.g. 3
+input_unit    TEXT NOT NULL       -- 'g' | 'tbsp' | 'tsp' | 'cup' | 'ml' | 'piece' | ...
+grams         NUMERIC NOT NULL    -- computed weight actually used in nutrition calc
 ```
+Nutrition fields are a snapshot copied from the linked product at add/relink time (or entered manually if unlinked) — not a live reference. This is what makes an ingredient resolvable even if its linked product is later deleted/purged (see `product_id` FK behavior above), and what allows a linked ingredient's values to be hand-edited without affecting the product itself.
+
+`grams` is always the value the nutrition calc function reads — `input_amount`/`input_unit` are kept only so the UI can display and edit the original entry (e.g. "3 tbsp") instead of a raw gram number. When `input_unit != 'g'`, `grams` is computed via `product_unit_conversions` below at entry/edit time, not recomputed on every read.
+
+### product_unit_conversions
+```sql
+id              UUID PRIMARY KEY
+product_id      UUID REFERENCES products(id)
+unit            TEXT NOT NULL     -- 'tsp' | 'tbsp' | 'cup' | 'ml' | 'piece' | ...
+grams_per_unit  NUMERIC NOT NULL
+UNIQUE (product_id, unit)
+```
+Per-product volume/count → weight conversion (a tbsp of sugar and a tbsp of oil have different `grams_per_unit`). Populated the first time a user enters that product in that unit; reused on every subsequent use of that product+unit across all recipes. Unlinked ingredients (no `product_id`) skip this table entirely — the user enters `grams` directly for those, or the UI can still ask for a one-off amount→grams conversion that isn't persisted anywhere.
 
 ### recipe_portions
 ```sql
@@ -353,6 +386,9 @@ PATCH  /products/:id         Update product
 DELETE /products/:id         Soft delete (sets deleted_at, recoverable for 30 days)
 GET    /products/deleted     List recently-deleted products (within 30-day window)
 POST   /products/:id/restore Restore a recently-deleted product
+
+GET    /products/:id/unit-conversions        List saved unit conversions for a product
+POST   /products/:id/unit-conversions        Save a conversion (unit, grams_per_unit) — upsert on (product_id, unit)
 ```
 
 ### Groups
@@ -378,6 +414,12 @@ GET    /recipes/:id/portions       List named portions for a recipe
 POST   /recipes/:id/portions       Create a named portion
 PATCH  /recipes/:id/portions/:id   Update a named portion (name, grams, is_default)
 DELETE /recipes/:id/portions/:id   Delete a named portion
+
+POST   /recipes/:id/ingredients                  Add an ingredient (linked: {product_id, input_amount, input_unit} or unlinked: {name, brand, macros, input_amount, input_unit})
+PATCH  /recipes/:id/ingredients/:id              Edit snapshot values directly (name/brand/macros/grams) — does not change product_id
+PATCH  /recipes/:id/ingredients/:id/relink       Swap the linked product (or link an unlinked ingredient) — refreshes the snapshot from the target product
+POST   /recipes/:id/ingredients/:id/promote      Create a product from this ingredient's snapshot and link it (unlinked → linked)
+DELETE /recipes/:id/ingredients/:id              Remove an ingredient from the recipe
 ```
 
 ### Goals
@@ -513,12 +555,16 @@ On 401 response
 - [x] Custom group management UI (create, rename, delete)
 
 ### Phase 3 — Recipes
-- [ ] Recipe CRUD endpoints
-- [ ] Recipe builder UI (select products, set grams)
-- [ ] Nutrition calculation logic (per whole meal + per 100g)
-- [ ] `recipe_portions` table + CRUD endpoints (multiple named portions per recipe)
-- [ ] Recipe detail UI: per-100g, per-meal, and per-portion nutrition views + portion management
-- [ ] Recipe list + detail screens
+- [x] Recipe CRUD endpoints
+- [x] `recipe_ingredients` table as a self-contained snapshot (name/brand/macros) with optional `product_id` (`ON DELETE SET NULL`)
+- [x] `product_unit_conversions` table (per-product, per-unit `grams_per_unit`) — `POST /products/:id/unit-conversions` endpoint still not built
+- [x] Ingredient endpoints: add (linked/unlinked, with input_amount/input_unit → grams conversion), edit snapshot (incl. relink via `product_id` in the same PATCH) — promote unlinked → saved product still not built
+- [ ] Recipe builder UI: add ingredients linked or unlinked, enter quantity in grams or household units, link/unlink indicator per row
+- [ ] Swap-product and add-to-library flows on ingredient rows
+- [ ] Nutrition calculation logic (per whole meal + per 100g), reading from ingredient snapshots
+- [x] `recipe_portions` table + CRUD endpoints (multiple named portions per recipe)
+- [x] Recipe detail UI: per-100g, per-meal, and per-portion nutrition views + portion management
+- [x] Recipe list + detail screens
 
 ### Phase 4 — Tracking & Goals
 - [ ] `user_goals` table + `GET`/`PATCH /goals` endpoints
@@ -571,4 +617,4 @@ On 401 response
 
 ---
 
-*Last updated: August 9, 2026. Update this file as decisions are made.*
+*Last updated: August 24, 2026. Update this file as decisions are made.*

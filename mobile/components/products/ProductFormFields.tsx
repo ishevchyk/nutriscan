@@ -3,7 +3,7 @@ import { Control, Controller, FieldErrors, FieldPath } from 'react-hook-form';
 
 import { Spacing } from '../../constants/theme';
 import { ProductFormInput, ProductFormValues } from '../../hooks/useProductForm';
-import { SectionLabel, UnderlineField, StatGrid, StatCard, NotesField } from '../ui';
+import { SectionLabel, UnderlineField, StatGrid, StatCard, RichEditorField } from '../ui';
 import { GroupPicker } from '../groups/GroupPicker';
 import { Group } from '../../store/types';
 
@@ -107,7 +107,7 @@ export function ProductFormFields({ control, errors, groups, selectedGroupIds, o
                 control={control}
                 name="notes"
                 render={({ field: { onChange, onBlur, value } }) => (
-                    <NotesField value={value ?? ''} onChangeText={onChange} onBlur={onBlur} />
+                    <RichEditorField value={value ?? ''} onChangeText={onChange} onBlur={onBlur} />
                 )}
             />
 
