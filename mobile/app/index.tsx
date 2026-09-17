@@ -22,5 +22,5 @@ export default function Index() {
     return null;
   }
 
-  return <Redirect href={accessToken ? '/(tabs)/products' : '/(auth)/login'} />;
+  return <Redirect href={accessToken ? '/(tabs)/tracker' : '/(auth)/login'} />;
 }

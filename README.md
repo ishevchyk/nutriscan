@@ -97,7 +97,10 @@ NutriScan is a personal nutrition tracking app that lets users build a library o
 - Ingredient quantity can be entered in grams directly, or in a household unit (tbsp, tsp, cup, piece, etc.) — household units convert to grams via a per-product conversion factor, since the same unit weighs differently per ingredient (a tbsp of sugar isn't a tbsp of oil). If a product has no saved conversion factor for the chosen unit yet, the user is prompted to enter one once; it's then reused everywhere that product is used with that unit.
 - Nutrition is auto-calculated in three views:
   - **Per whole meal** - total macros for the entire meal as written
-  - **Per 100g** - total macros ÷ total meal grams × 100
+  - **Per 100g** - total macros ÷ total meal grams × 100. A meal can optionally record `cooked_weight_grams` (the dish's weight after cooking, since water evaporation/absorption means it's rarely the same as the raw ingredient total); when set, **Per 100g** normalizes against that cooked weight instead, and **Per custom portion** below inherits the fix since it derives from Per 100g. **Per whole meal** is unaffected either way — cooking doesn't change total calories/macros, only water content.
+  - `cooked_weight_grams` is a measured value, not a derived one (how much water is lost/absorbed during cooking isn't a fixed ratio of raw ingredient weight) — editing an ingredient's grams never adjusts it automatically anywhere. The two mobile flows that touch it treat it differently on purpose:
+    - **Meal edit** (`mobile/app/meal/[id].tsx`, `noticeCookedWeightMayBeStale`) changes the saved meal itself, possibly for a long time — an ingredient edit here only shows a dismissible notice that the recorded cooked weight may now be stale, with no suggested number and no auto-fill. The user decides whether/when to re-weigh.
+    - **Tracker log entry** (`mobile/components/tracker/MealSourceStep.tsx`, `handleIngredientBlur`) only affects that one log entry, never the saved meal — an ingredient override here can offer a proportional *estimate* for this entry's logged amount (`quantity_grams`) as a one-tap accept/dismiss, since a wrong guess there is scoped to a single entry, not a standing recipe value.
   - **Per custom portion** - any number of named portions per meal (e.g. "1 slice", "1 bowl"), each just a gram amount; one portion can be marked default
 - Users can create, rename, and delete portions on any meal at any time
 - Create, edit, browse, and delete meals
@@ -270,11 +273,12 @@ user_id         UUID REFERENCES users(id)
 name            TEXT NOT NULL
 description     TEXT
 photo_url       TEXT
+cooked_weight_grams NUMERIC    -- optional; overrides the per_100g normalization denominator (see §3.5) when set
 created_at      TIMESTAMPTZ DEFAULT now()
 updated_at      TIMESTAMPTZ DEFAULT now()
 deleted_at      TIMESTAMPTZ    -- soft delete, powers Recently Deleted
 ```
-Note: the old single `portion_grams` field is replaced by `meal_portions` below, which supports multiple named portions per meal.
+Note: the old single `portion_grams` field is replaced by `meal_portions` below, which supports multiple named portions per meal. `cooked_weight_grams` is unrelated to that history — it's a normalization override, not a portion.
 
 ### meal_ingredients
 ```sql
@@ -339,7 +343,7 @@ logged_at         TIMESTAMPTZ NOT NULL   -- date+time the food was consumed
 meal_slot         TEXT NOT NULL          -- 'breakfast' | 'lunch' | 'dinner' | 'snack'
 source_type       TEXT NOT NULL          -- 'product' | 'meal' | 'manual'
 product_id        UUID REFERENCES products(id)         -- set if source_type = 'product'
-quantity_grams    NUMERIC                               -- set if source_type = 'product' or 'manual'
+quantity_grams    NUMERIC                               -- set if source_type = 'product' or 'meal' (see below)
 meal_id           UUID REFERENCES meals(id)             -- set if source_type = 'meal'
 portion_id        UUID REFERENCES meal_portions(id)     -- optional, if a named portion was selected
 manual_calories   NUMERIC   -- set if source_type = 'manual'
@@ -350,6 +354,8 @@ created_at        TIMESTAMPTZ DEFAULT now()
 ```
 Note: `meal_slot` (breakfast/lunch/dinner/snack) is a separate concept from the `meals` entity above — a `meal_slot` is a time-of-day bucket a log entry is filed under, and any `source_type` (product, meal, or manual) can be logged into any `meal_slot`. See the naming decision in §2.
 
+For `source_type = 'meal'`, `quantity_grams` is the dish's logged weight — a named portion's own `grams`, a custom amount, or the meal's reference weight (§3.5's `cooked_weight_grams` when set, else the raw ingredient total) for an unscaled whole-meal log. It's **not** derived from `log_entry_meal_ingredients` below and can disagree with the sum of it once the meal has a `cooked_weight_grams` — see that table's note.
+
 ### log_entry_meal_ingredients
 ```sql
 id            UUID PRIMARY KEY
@@ -359,9 +365,11 @@ grams         NUMERIC NOT NULL   -- defaults to meal_ingredients.grams at time o
 ```
 Only populated when `log_entries.source_type = 'meal'`. This is a snapshot, not a live reference — editing grams here (e.g. "used 50g cheese not 70g") only affects this one logged entry, never the meal itself.
 
+`grams` here is a **raw-ingredient-equivalent** breakdown, not the weight of the dish that was logged — it exists only to drive the per-ingredient macro calc below. When the meal has a `cooked_weight_grams`, a named portion's ingredients are scaled against that (§3.5), so summing this table's `grams` no longer equals the portion's own weight; use `log_entries.quantity_grams` for the displayed/loggable amount instead.
+
 ### Computing macros for a log entry
 - `source_type = 'product'` → `quantity_grams / 100 × product's per-100g macros`
-- `source_type = 'meal'` → sum over `log_entry_meal_ingredients`: `grams / 100 × each product's per-100g macros`
+- `source_type = 'meal'` → sum over `log_entry_meal_ingredients`: `grams / 100 × each product's per-100g macros` (uses that table's raw-equivalent grams, not `log_entries.quantity_grams`)
 - `source_type = 'manual'` → use `manual_*` fields directly
 
 ### Soft deletes & recovery
@@ -440,11 +448,12 @@ GET    /log?date=YYYY-MM-DD    List log entries for a given day, grouped by meal
 POST   /log                    Create a log entry
                                 Body varies by source_type:
                                 - product: { source_type: 'product', product_id, quantity_grams, meal_slot, logged_at }
-                                - meal:    { source_type: 'meal', meal_id, portion_id?, ingredient_overrides?: [{product_id, grams}], meal_slot, logged_at }
+                                - meal:    { source_type: 'meal', meal_id, portion_id?, ingredient_overrides?: [{product_id, grams}], quantity_grams?, meal_slot, logged_at } -- quantity_grams is the dish's logged weight; omit to let the server derive it (portion.grams, or the meal's reference weight)
                                 - manual:  { source_type: 'manual', manual_calories, manual_protein, manual_fat, manual_carbs, meal_slot, logged_at }
-PATCH  /log/:id                Update a log entry (e.g. edit an ingredient override, change grams)
+PATCH  /log/:id                Update a log entry (e.g. edit an ingredient override, change grams -- quantity_grams is editable on 'product' and 'meal' entries)
 DELETE /log/:id                Delete a log entry
 GET    /log/summary?date=      Daily totals (calories, protein, fat, carbs) vs. active goals
+GET    /log/logged-days?year=&month=   Day-of-month numbers (1-31) that have at least one log entry that month -- powers the tracker's calendar view (all days are still navigable; unlogged days just render lighter, no highlight)
 ```
 
 ### Settings
@@ -573,14 +582,14 @@ On 401 response
 - [x] Meal list + detail screens
 
 ### Phase 4 — Tracking & Goals
-- [ ] `user_goals` table + `GET`/`PATCH /goals` endpoints
+- [x] `user_goals` table + `GET`/`PATCH /goals` endpoints
 - [ ] Goal setting UI (manual entry of calories/protein/fat/carbs)
-- [ ] `log_entries` + `log_entry_meal_ingredients` tables + migrations
-- [ ] `/log` CRUD endpoints + `/log/summary` aggregation endpoint
-- [ ] Log page UI: daily view grouped by meal slot, add-entry flow (product / meal+portion / manual)
-- [ ] Global "+ Log" modal: meal-slot-selection step (Breakfast/Lunch/Dinner/Snack) followed by source selection, feeding into the same add-entry flow as the per-slot buttons
-- [ ] Meal-logging flow: editable per-ingredient grams with live macro recalculation before saving
-- [ ] Daily summary UI: totals vs. goals per macro (progress bars/rings)
+- [x] `log_entries` + `log_entry_meal_ingredients` tables + migrations
+- [x] `/log` CRUD endpoints + `/log/summary` aggregation endpoint
+- [x] Log page UI: daily view grouped by meal slot, add-entry flow (product / meal+portion / manual)
+- [x] Global "+ Log" modal: meal-slot-selection step (Breakfast/Lunch/Dinner/Snack) followed by source selection, feeding into the same add-entry flow as the per-slot buttons
+- [x] Meal-logging flow: editable per-ingredient grams with live macro recalculation before saving
+- [x] Daily summary UI: totals vs. goals per macro (progress bars/rings)
 
 ### Phase 5 — User Settings
 - [ ] `user_settings` table + migration (units, timezone, notifications)

@@ -20,7 +20,7 @@ import { AddIngredientSheet } from '../components/meals/AddIngredientSheet';
 import { MissingConversionSheet } from '../components/meals/MissingConversionSheet';
 import { IngredientVM } from '../components/meals/types';
 import { computeIngredientsNutrition } from '../utils/nutritionUtils';
-import { CollapsibleSection, RichEditorField, SectionLabel, Stepper, UnderlineField } from '../components/ui';
+import { CollapsibleSection, RichEditorField, SectionLabel, StatCard, Stepper, UnderlineField } from '../components/ui';
 
 const DEFAULT_INGREDIENT_AMOUNT = 100;
 
@@ -84,6 +84,7 @@ export default function AddMeal() {
 
     const { control, handleSubmit, watch, formState: { errors } } = useMealForm();
     const watchedServings = watch('servings') ?? 1;
+    const watchedCookedWeightGrams = watch('cooked_weight_grams') ?? null;
 
     const managedDraft = drafts.find((d) => d.key === managedKey) ?? null;
     const manualCount = drafts.filter((d) => !d.is_linked).length;
@@ -212,11 +213,30 @@ export default function AddMeal() {
                     )}
                 />
 
+                <Controller
+                    control={control}
+                    name="cooked_weight_grams"
+                    render={({ field: { onChange, onBlur, value } }) => (
+                        <StatCard
+                            label="Cooked weight (optional)"
+                            unit="g"
+                            value={value ?? null}
+                            onChangeValue={onChange}
+                            onBlur={onBlur}
+                            size="sm"
+                        />
+                    )}
+                />
+                {errors.cooked_weight_grams?.message && (
+                    <Text style={styles.fieldError}>{errors.cooked_weight_grams.message}</Text>
+                )}
+
                 <NutritionSummaryCard
                     perMeal={nutrition.per_meal}
                     per100g={nutrition.per_100g}
                     servings={watchedServings}
                     totalGrams={nutrition.totalGrams}
+                    cookedWeightGrams={watchedCookedWeightGrams}
                     manualCount={manualCount}
                 />
 
@@ -362,6 +382,11 @@ function createStyles(colors: ThemeColors) {
             gap: Spacing.md,
         },
         titleField: { flex: 1 },
+        fieldError: {
+            color: colors.error,
+            fontSize: Typography.fontSize.sm,
+            marginTop: -Spacing.sm,
+        },
         saveButton: {
             backgroundColor: colors.primary,
             borderWidth: 1,

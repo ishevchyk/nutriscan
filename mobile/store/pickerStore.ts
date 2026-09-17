@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { Product } from './productStore';
+import { MealSummary } from './mealStore';
 import { ProductFormValues } from '../hooks/useProductForm';
 
 /** Result of the add-product-for-meal flow: a product saved to the library,
@@ -17,6 +18,10 @@ interface PickerState {
   addProductResolver: ((result: AddProductResult) => void) | null;
   setAddProductResolver: (fn: (result: AddProductResult) => void) => void;
   resolveAddProduct: (result: AddProductResult) => void;
+
+  mealResolver: ((meal: MealSummary | null) => void) | null;
+  setMealResolver: (fn: (meal: MealSummary | null) => void) => void;
+  resolveMeal: (meal: MealSummary | null) => void;
 }
 
 export const usePickerStore = create<PickerState>((set, get) => ({
@@ -32,5 +37,12 @@ export const usePickerStore = create<PickerState>((set, get) => ({
   resolveAddProduct: (result) => {
     get().addProductResolver?.(result);
     set({ addProductResolver: null });
+  },
+
+  mealResolver: null,
+  setMealResolver: (fn) => set({ mealResolver: fn }),
+  resolveMeal: (meal) => {
+    get().mealResolver?.(meal);
+    set({ mealResolver: null });
   },
 }));

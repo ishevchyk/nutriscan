@@ -6,6 +6,7 @@ import { useThemeColor } from '../../hooks/useThemeColor';
 import { GRAM_UNIT } from '../../constants/units';
 import { GroupChip } from '../groups/GroupChip';
 import { BottomSheet } from '../ui';
+import { sanitizeDecimalInput } from '../../utils/formatUtils';
 
 type QuantityInputProps = {
   amount: number;
@@ -41,7 +42,7 @@ export function QuantityInput({
   }, [amount, unit]);
 
   function handleChangeText(raw: string) {
-    setText(raw.replace(/[^0-9.]/g, ''));
+    setText(sanitizeDecimalInput(raw));
   }
 
   function handleBlur() {
