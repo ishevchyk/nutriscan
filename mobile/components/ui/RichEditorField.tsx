@@ -42,16 +42,26 @@ export function RichEditorField({
   const colors = useThemeColor();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  const editor = useEditorBridge({
-    autofocus: false,
-    avoidIosKeyboard: true,
-    initialContent: value || EMPTY_HTML,
-    bridgeExtensions: [
+  // Must stay referentially stable across renders: useEditorBridge only
+  // recomputes its internal bridge when this array's identity changes, and a
+  // new array here re-injects JS into the WebView, reloading the editor on
+  // every keystroke (since typing re-renders this component via RHF).
+  const bridgeExtensions = useMemo(
+    () => [
       ...TenTapStartKit,
       CoreBridge.configureCSS(editorCss(colors)),
       PlaceholderBridge.configureExtension({ placeholder }),
     ],
-    theme: { webview: { backgroundColor: colors.card } },
+    [colors, placeholder]
+  );
+  const theme = useMemo(() => ({ webview: { backgroundColor: colors.card } }), [colors]);
+
+  const editor = useEditorBridge({
+    autofocus: false,
+    avoidIosKeyboard: true,
+    initialContent: value || EMPTY_HTML,
+    bridgeExtensions,
+    theme,
   });
 
   const content = useEditorContent(editor, { type: 'html', debounceInterval: 150 });
