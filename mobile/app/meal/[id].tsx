@@ -16,11 +16,10 @@ import { NutritionSummaryCard } from '../../components/meals/NutritionSummaryCar
 import { IngredientCard } from '../../components/meals/IngredientCard';
 import { IngredientManageSheet } from '../../components/meals/IngredientManageSheet';
 import { AddIngredientSheet } from '../../components/meals/AddIngredientSheet';
-import { AddToTrackerSheet } from '../../components/meals/AddToTrackerSheet';
 import { MissingConversionSheet } from '../../components/meals/MissingConversionSheet';
 import { PortionList } from '../../components/meals/PortionList';
 import { toIngredientVM } from '../../components/meals/types';
-import { CollapsibleSection, RichEditorField, RichTextView, SectionLabel, Stepper, UnderlineField } from '../../components/ui';
+import { CollapsibleSection, RichEditorField, RichTextView, SectionLabel, StatCard, Stepper, UnderlineField } from '../../components/ui';
 
 const DEFAULT_INGREDIENT_AMOUNT = 100;
 
@@ -53,7 +52,6 @@ export default function MealDetail() {
   const [mode, setMode] = useState<'view' | 'edit'>('view');
   const [managedKey, setManagedKey] = useState<string | null>(null);
   const [addSheetOpen, setAddSheetOpen] = useState(false);
-  const [trackerSheetOpen, setTrackerSheetOpen] = useState(false);
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
   useEffect(() => {
@@ -66,6 +64,7 @@ export default function MealDetail() {
 
   const { control, handleSubmit, watch, formState: { errors } } = useMealForm(meal ?? undefined);
   const watchedServings = watch('servings') ?? meal?.servings ?? 1;
+  const watchedCookedWeightGrams = watch('cooked_weight_grams') ?? meal?.cooked_weight_grams ?? null;
 
   const ingredients = useMemo(() => (meal?.ingredients ?? []).map(toIngredientVM), [meal?.ingredients]);
   const managedIngredient = ingredients.find((i) => i.key === managedKey) ?? null;
@@ -98,17 +97,46 @@ export default function MealDetail() {
     );
   }
 
+  // Cooked weight is a measured, not derived, quantity (how much water
+  // evaporated/was absorbed isn't a fixed ratio of raw ingredient weight --
+  // see README §3.5), so an ingredient edit never adjusts it automatically,
+  // and this never suggests a number either -- unlike a one-off tracker log
+  // entry, an edit here changes the saved meal itself, potentially for a long
+  // time, so silently offering an auto-filled estimate risks it getting
+  // accepted without a real re-weigh and then sitting wrong indefinitely.
+  // Just a heads-up that it may now be stale; the user decides what to do.
+  function noticeCookedWeightMayBeStale(oldTotalGrams: number) {
+    const currentCookedWeight = watchedCookedWeightGrams;
+    if (!currentCookedWeight || oldTotalGrams <= 0) return;
+    const freshMeal = useMealStore.getState().selected;
+    if (!freshMeal || freshMeal.id !== meal!.id) return;
+    const newTotalGrams = freshMeal.ingredients.reduce((sum, i) => sum + i.grams, 0);
+    if (Math.abs(newTotalGrams - oldTotalGrams) < 0.5) return;
+
+    Alert.alert(
+      'Recorded cooked weight may be stale',
+      `Raw ingredients changed from ${Math.round(oldTotalGrams)}g to ${Math.round(newTotalGrams)}g. The recorded cooked weight (${Math.round(currentCookedWeight)}g) was measured for the old recipe -- consider re-weighing the dish and updating it if this changes the recipe meaningfully.`,
+      [{ text: 'OK' }]
+    );
+  }
+
   async function commitQuantity(ingredient: (typeof ingredients)[number], amount: number, unit: string) {
     setBusyKey(ingredient.key);
+    const oldTotalGrams = totalGrams;
     try {
+      let committed = true;
       if (!ingredient.product_id || unit === GRAM_UNIT) {
         await updateIngredientValues(meal!.id, ingredient.key, { input_amount: amount, input_unit: unit });
-        return;
+      } else {
+        const result = await guard.runGuarded(
+          () => updateIngredientValues(meal!.id, ingredient.key, { input_amount: amount, input_unit: unit }),
+          { productId: ingredient.product_id, productName: ingredient.name, unit }
+        );
+        committed = result.ok;
       }
-      await guard.runGuarded(
-        () => updateIngredientValues(meal!.id, ingredient.key, { input_amount: amount, input_unit: unit }),
-        { productId: ingredient.product_id, productName: ingredient.name, unit }
-      );
+      // Skip the offer if the user cancelled a missing-conversion prompt --
+      // nothing was actually updated, so there's nothing to reconcile.
+      if (committed) noticeCookedWeightMayBeStale(oldTotalGrams);
     } finally {
       setBusyKey(null);
     }
@@ -208,6 +236,7 @@ export default function MealDetail() {
           <Text style={styles.metaLine}>
             {ingredients.length} ingredient{ingredients.length === 1 ? '' : 's'} · {meal.servings} serving
             {meal.servings === 1 ? '' : 's'}
+            {meal.cooked_weight_grams ? ` · ${Math.round(meal.cooked_weight_grams)}g cooked` : ''}
           </Text>
         )}
 
@@ -244,19 +273,47 @@ export default function MealDetail() {
           />
         )}
 
+        {/* Cooked weight */}
+        {isEditing && (
+          <>
+            <Controller
+              control={control}
+              name="cooked_weight_grams"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <StatCard
+                  label="Cooked weight (optional)"
+                  unit="g"
+                  value={value ?? null}
+                  onChangeValue={onChange}
+                  onBlur={onBlur}
+                  size="sm"
+                  style={styles.blockSpacing}
+                />
+              )}
+            />
+            {errors.cooked_weight_grams?.message && (
+              <Text style={styles.fieldError}>{errors.cooked_weight_grams.message}</Text>
+            )}
+          </>
+        )}
+
         {/* Nutrition */}
         <NutritionSummaryCard
           perMeal={meal.nutrition.per_meal}
           per100g={meal.nutrition.per_100g}
           servings={isEditing ? watchedServings : meal.servings}
           totalGrams={totalGrams}
+          cookedWeightGrams={watchedCookedWeightGrams}
           manualCount={manualCount}
         />
 
         {/* Add to Day Tracker */}
         {!isEditing && (
           <View style={styles.trackerBlock}>
-            <Pressable style={styles.trackerButton} onPress={() => setTrackerSheetOpen(true)}>
+            <Pressable
+              style={styles.trackerButton}
+              onPress={() => router.push({ pathname: '/log-entry', params: { mealId: meal.id } })}
+            >
               <Text style={styles.trackerButtonText}>Add to Day Tracker</Text>
             </Pressable>
           </View>
@@ -333,18 +390,24 @@ export default function MealDetail() {
           if (!managedIngredient) return;
           const ingredientKey = managedIngredient.key;
           const productId = managedIngredient.product_id;
+          const oldTotalGrams = totalGrams;
           const commit = () => updateIngredientValues(meal.id, ingredientKey, values);
           // Keep the sheet open (its Save button shows a spinner) for the
           // duration of the network round-trip -- there's nothing to see
           // happen until this settles, so closing early just looks frozen.
+          let committed = true;
           if (productId && values.input_unit !== GRAM_UNIT) {
-            await guard.runGuarded(commit, { productId, productName: values.name, unit: values.input_unit }, {
+            const result = await guard.runGuarded(commit, { productId, productName: values.name, unit: values.input_unit }, {
               onBeforePrompt: () => setManagedKey(null),
             });
+            committed = result.ok;
           } else {
             await commit();
           }
           setManagedKey(null);
+          // Skip the offer if the user cancelled a missing-conversion prompt --
+          // nothing was actually updated, so there's nothing to reconcile.
+          if (committed) afterSheetClose(() => noticeCookedWeightMayBeStale(oldTotalGrams));
         }}
         onUnlink={async () => {
           if (!managedIngredient) return;
@@ -368,15 +431,6 @@ export default function MealDetail() {
         onClose={() => setAddSheetOpen(false)}
         onChooseFromLibrary={handleChooseFromLibrary}
         onAddProduct={handleAddProduct}
-      />
-
-      <AddToTrackerSheet
-        visible={trackerSheetOpen}
-        onClose={() => setTrackerSheetOpen(false)}
-        mealName={meal.name}
-        servings={meal.servings}
-        ingredients={ingredients}
-        portions={meal.portions}
       />
 
       <MissingConversionSheet
@@ -410,6 +464,11 @@ function createStyles(colors: ThemeColors) {
       gap: Spacing.md,
     },
     titleField: { flex: 1 },
+    fieldError: {
+      color: colors.error,
+      fontSize: Typography.fontSize.sm,
+      marginTop: -Spacing.sm,
+    },
     title: {
       flex: 1,
       fontSize: Typography.fontSize.xl,

@@ -13,6 +13,7 @@ const defaultValues: MealFormInput = {
     description: '',
     photo_url: '',
     servings: 1,
+    cooked_weight_grams: null,
 };
 
 export function useMealForm(meal?: Meal) {
@@ -25,6 +26,7 @@ export function useMealForm(meal?: Meal) {
                 description: meal.description,
                 photo_url: meal.photo_url,
                 servings: meal.servings,
+                cooked_weight_grams: meal.cooked_weight_grams,
             }
             : undefined,
         // Ingredient operations refresh the selected meal, which re-applies

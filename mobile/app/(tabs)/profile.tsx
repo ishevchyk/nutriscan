@@ -4,7 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Spacing, ThemeColors, Typography } from '../../constants/theme';
 import { useThemeColor } from '../../hooks/useThemeColor';
 
-export default function SettingsScreen() {
+export default function ProfileScreen() {
   const colors = useThemeColor();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
