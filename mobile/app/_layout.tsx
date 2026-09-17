@@ -43,6 +43,12 @@ export default function RootLayout() {
                     ),
                 }}>
                 <Stack.Screen
+                    name="index"
+                    options={{
+                        headerShown: false,
+                    }}
+                />
+                <Stack.Screen
                     name="(tabs)"
                     options={{
                         headerShown: false,
@@ -112,6 +118,41 @@ export default function RootLayout() {
                                     },
                                 }}
                             />
+                        ),
+                    }}
+                />
+                <Stack.Screen
+                    name="meal-picker"
+                    options={{
+                        presentation: 'modal',
+                        header: () => (
+                            <ScreenHeader
+                                headerTitle="Select Meal"
+                                rightAction={{
+                                    label: 'CANCEL',
+                                    onPress: () => {
+                                        usePickerStore.getState().resolveMeal(null);
+                                        router.back();
+                                    },
+                                }}
+                            />
+                        ),
+                    }}
+                />
+                <Stack.Screen
+                    name="log-entry"
+                    options={{
+                        presentation: 'modal',
+                        header: () => (
+                            <ScreenHeader headerTitle="Log entry" rightAction={{ label: 'CANCEL', onPress: () => router.back() }} />
+                        ),
+                    }}
+                />
+                <Stack.Screen
+                    name="goals"
+                    options={{
+                        header: () => (
+                            <ScreenHeader headerTitle="Goals" rightAction={backAction('Tracker')} />
                         ),
                     }}
                 />

@@ -37,7 +37,7 @@ export default function LoginScreen() {
       );
       await SecureStore.setItemAsync(SECURE_STORE_REFRESH_KEY, data.refresh_token);
       setTokens(data.access_token, data.refresh_token);
-      router.replace('/(tabs)/products');
+      router.replace('/(tabs)/tracker');
     } catch (err: any) {
       console.error('Login error:', err);
       if (err.response?.status === 401) {
