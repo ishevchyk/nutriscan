@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { Radii, Spacing, ThemeColors, Typography } from '../constants/theme';
@@ -38,23 +38,31 @@ export default function AddProduct() {
     }, [isForMeal]);
 
     const { control, handleSubmit, formState: { errors } } = useProductForm();
+    const [saving, setSaving] = useState(false);
 
     function toggleGroup(groupId: string) {
         setSelectedGroupIds((ids) => (ids.includes(groupId) ? ids.filter((i) => i !== groupId) : [...ids, groupId]));
     }
 
     async function onSubmit(data: ProductFormValues) {
-        const product = await addProduct(data);
-        if (selectedGroupIds.length > 0) {
-            await assignProductToGroups(product.id, selectedGroupIds);
+        if (saving) return;
+        setSaving(true);
+        try {
+            const product = await addProduct(data);
+            if (selectedGroupIds.length > 0) {
+                await assignProductToGroups(product.id, selectedGroupIds);
+            }
+            if (isForMeal) {
+                usePickerStore.getState().resolveAddProduct({ kind: 'library', product });
+            }
+            router.back();
+        } finally {
+            setSaving(false);
         }
-        if (isForMeal) {
-            usePickerStore.getState().resolveAddProduct({ kind: 'library', product });
-        }
-        router.back();
     }
 
     function onSubmitMealOnly(data: ProductFormValues) {
+        if (saving) return;
         usePickerStore.getState().resolveAddProduct({ kind: 'mealOnly', values: data });
         router.back();
     }
@@ -69,12 +77,24 @@ export default function AddProduct() {
                 onToggleGroup={toggleGroup}
             />
 
-            <Pressable style={styles.button} onPress={handleSubmit(onSubmit)}>
-                <Text style={styles.buttonText}>{isForMeal ? 'Save to Library' : 'Save'}</Text>
+            <Pressable
+                style={[styles.button, saving && styles.buttonDisabled]}
+                onPress={handleSubmit(onSubmit)}
+                disabled={saving}
+            >
+                {saving ? (
+                    <ActivityIndicator color={colors.onPrimary} />
+                ) : (
+                    <Text style={styles.buttonText}>{isForMeal ? 'Save to Library' : 'Save'}</Text>
+                )}
             </Pressable>
 
             {isForMeal && (
-                <Pressable style={styles.secondaryButton} onPress={handleSubmit(onSubmitMealOnly)}>
+                <Pressable
+                    style={[styles.secondaryButton, saving && styles.buttonDisabled]}
+                    onPress={handleSubmit(onSubmitMealOnly)}
+                    disabled={saving}
+                >
                     <Text style={styles.secondaryButtonText}>Save to meal only</Text>
                 </Pressable>
             )}
@@ -102,6 +122,9 @@ function createStyles(colors: ThemeColors) {
             color: colors.onPrimary,
             fontSize: Typography.fontSize.base,
             fontWeight: Typography.fontWeight.semibold,
+        },
+        buttonDisabled: {
+            opacity: 0.6,
         },
         secondaryButton: {
             borderWidth: 1,
