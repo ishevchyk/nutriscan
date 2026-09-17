@@ -114,6 +114,7 @@ class MealCreate(BaseModel):
     description: str | None = None
     photo_url: str | None = None
     servings: int = Field(default=1, ge=1)
+    cooked_weight_grams: float | None = None
     ingredients: list[MealIngredientIn] = []
 
     @field_validator("description")
@@ -121,18 +122,29 @@ class MealCreate(BaseModel):
     def sanitize_description(cls, v: str | None) -> str | None:
         return sanitize_rich_text(v)
 
+    @field_validator("cooked_weight_grams")
+    @classmethod
+    def _validate_cooked_weight_grams(cls, v: float | None) -> float | None:
+        return v if v is None else _validate_positive_grams(v)
+
 
 class MealUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
     photo_url: str | None = None
     servings: int | None = Field(default=None, ge=1)
+    cooked_weight_grams: float | None = None
     ingredients: list[MealIngredientIn] | None = None  # None = untouched; [] = clear all
 
     @field_validator("description")
     @classmethod
     def sanitize_description(cls, v: str | None) -> str | None:
         return sanitize_rich_text(v)
+
+    @field_validator("cooked_weight_grams")
+    @classmethod
+    def _validate_cooked_weight_grams(cls, v: float | None) -> float | None:
+        return v if v is None else _validate_positive_grams(v)
 
 
 class NutritionOut(BaseModel):
@@ -169,6 +181,7 @@ class MealDetailOut(BaseModel):
     description: str | None
     photo_url: str | None
     servings: int
+    cooked_weight_grams: float | None
     created_at: datetime
     updated_at: datetime
     ingredients: list[MealIngredientOut]

@@ -108,7 +108,7 @@ async def _build_meal_detail(db: AsyncSession, meal: Meal) -> Meal:
     to invalidate."""
     await _attach_ingredients(db, [meal])
     await _attach_portions(db, [meal])
-    nutrition = calculate_meal_nutrition(meal.ingredients, meal.portions)
+    nutrition = calculate_meal_nutrition(meal.ingredients, meal.portions, meal.cooked_weight_grams)
     meal.nutrition = {"per_meal": nutrition["per_meal"], "per_100g": nutrition["per_100g"]}
     for portion in meal.portions:
         portion.nutrition = nutrition["portions"][portion.id]
@@ -228,6 +228,7 @@ async def create_meal(
         description=body.description,
         photo_url=body.photo_url,
         servings=body.servings,
+        cooked_weight_grams=body.cooked_weight_grams,
         user_id=current_user.id,
     )
     db.add(meal)
