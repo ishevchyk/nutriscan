@@ -7,6 +7,9 @@ from app.models.meal import Meal
 from app.models.meal_ingredient import MealIngredient
 from app.models.meal_portion import MealPortion
 from app.models.product_unit_conversions import ProductUnitConversion
+from app.models.user_goal import UserGoal
+from app.models.log_entry import LogEntry
+from app.models.log_entry_meal_ingredient import LogEntryMealIngredient
 
 __all__ = [
     "User",
@@ -18,4 +21,7 @@ __all__ = [
     "MealIngredient",
     "MealPortion",
     "ProductUnitConversion",
+    "UserGoal",
+    "LogEntry",
+    "LogEntryMealIngredient",
 ]
