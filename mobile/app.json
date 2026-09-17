@@ -13,7 +13,8 @@
       "expo-font"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.nutriscan"
     },
     "android": {
       "adaptiveIcon": {
