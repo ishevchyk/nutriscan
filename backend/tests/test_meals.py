@@ -131,6 +131,75 @@ async def test_meal_servings_below_one_422(client, auth_headers):
     assert patch_resp.status_code == 422
 
 
+async def test_create_meal_cooked_weight_grams_defaults_to_null(client, auth_headers):
+    resp = await client.post("/meals", json={"name": "No Cooked Weight"}, headers=auth_headers)
+    assert resp.status_code == 201
+    assert resp.json()["cooked_weight_grams"] is None
+
+
+async def test_create_meal_with_cooked_weight_grams(client, auth_headers):
+    resp = await client.post(
+        "/meals", json={"name": "Cooked Weight", "cooked_weight_grams": 240}, headers=auth_headers
+    )
+    assert resp.status_code == 201
+    assert resp.json()["cooked_weight_grams"] == 240
+
+
+async def test_patch_meal_cooked_weight_grams(client, auth_headers):
+    meal = await _create_meal(client, auth_headers, name="Cookable")
+    resp = await client.patch(f"/meals/{meal['id']}", json={"cooked_weight_grams": 240}, headers=auth_headers)
+    assert resp.status_code == 200
+    assert resp.json()["cooked_weight_grams"] == 240
+
+
+async def test_patch_meal_cooked_weight_grams_clear_to_null(client, auth_headers):
+    meal = await _create_meal(client, auth_headers, name="Clearable", cooked_weight_grams=240)
+    resp = await client.patch(f"/meals/{meal['id']}", json={"cooked_weight_grams": None}, headers=auth_headers)
+    assert resp.status_code == 200
+    assert resp.json()["cooked_weight_grams"] is None
+
+
+async def test_meal_cooked_weight_grams_zero_or_negative_422(client, auth_headers):
+    resp = await client.post("/meals", json={"name": "Bad", "cooked_weight_grams": 0}, headers=auth_headers)
+    assert resp.status_code == 422
+    resp = await client.post("/meals", json={"name": "Bad", "cooked_weight_grams": -10}, headers=auth_headers)
+    assert resp.status_code == 422
+
+    meal = await _create_meal(client, auth_headers, name="Patch Bad Cooked Weight")
+    patch_resp = await client.patch(
+        f"/meals/{meal['id']}", json={"cooked_weight_grams": 0}, headers=auth_headers
+    )
+    assert patch_resp.status_code == 422
+
+
+async def test_meal_nutrition_per_100g_uses_cooked_weight_end_to_end(client, auth_headers):
+    resp = await client.post(
+        "/meals",
+        json={
+            "name": "Stew",
+            "cooked_weight_grams": 240,
+            "ingredients": [
+                {
+                    "name": "Raw mix",
+                    "input_amount": 500,
+                    "calories": 140,  # per 100g, so 500g raw = 700 total calories
+                    "protein": 10,
+                    "fat": 5,
+                    "carbs": 15,
+                    "fiber": 1,
+                    "sugar": 2,
+                    "salt": 0.1,
+                }
+            ],
+        },
+        headers=auth_headers,
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["nutrition"]["per_meal"]["calories"] == pytest.approx(700)
+    assert body["nutrition"]["per_100g"]["calories"] == pytest.approx(700 / 240 * 100)
+
+
 async def test_list_meals_light_shape(client, auth_headers):
     await _create_meal(client, auth_headers, name="Meal A")
     resp = await client.get("/meals", headers=auth_headers)
