@@ -3,7 +3,7 @@ import { Platform, StyleProp, StyleSheet, Text, TextInput, View, ViewStyle } fro
 
 import { Radii, Spacing, ThemeColors, Typography } from '../../constants/theme';
 import { useThemeColor } from '../../hooks/useThemeColor';
-import {formatValue} from "../../utils/formatUtils";
+import {formatValue, sanitizeDecimalInput} from "../../utils/formatUtils";
 
 type StatCardSize = 'lg' | 'sm';
 
@@ -30,7 +30,7 @@ export function StatCard({ label, unit, value, onChangeValue, onBlur, size = 'lg
   }, [value]);
 
   function handleChangeText(raw: string) {
-    const cleaned = raw.replace(/[^0-9.]/g, '');
+    const cleaned = sanitizeDecimalInput(raw);
     setText(cleaned);
     if (cleaned === '' || cleaned === '.') {
       onChangeValue?.(null);

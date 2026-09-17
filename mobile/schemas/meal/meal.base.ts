@@ -6,6 +6,7 @@ export const MealFields = {
     description: z.string().nullable(),
     photo_url: z.string().nullable(),
     servings: z.number().int().min(1, "At least 1 serving"),
+    cooked_weight_grams: z.number().positive("Must be greater than 0").nullable(),
 };
 
 export const MealBase = z.object(MealFields);

@@ -19,6 +19,12 @@ export default function TabsLayout() {
         }>
             <Tabs.Screen name="tracker" options={{
                 title: 'Tracker',
+                header: () => (
+                    <ScreenHeader
+                        headerTitle="Day tracker"
+                        rightAction={{label: '+ LOG', onPress: () => router.push('/log-entry')}}
+                    />
+                ),
                 tabBarIcon: ({focused}) => (
                     <MaterialDesignIcons name={"alpha-t-circle-outline"} size={20} color={focused ? colors.primary : colors.surface}/>
                 ),
@@ -46,8 +52,8 @@ export default function TabsLayout() {
                 ),
             }}/>
 
-            <Tabs.Screen name="settings" options={{
-                title: 'Settings',
+            <Tabs.Screen name="profile" options={{
+                title: 'Profile',
                 tabBarIcon: ({focused}) => (
                     <MaterialDesignIcons name={"account-cog"} size={20} color={focused ? colors.primary : colors.surface}/>
                 ),

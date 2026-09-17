@@ -53,6 +53,7 @@ export interface Meal {
   description: string | null;
   photo_url: string | null;
   servings: number;
+  cooked_weight_grams: number | null;
   created_at: string;
   updated_at: string;
   ingredients: MealIngredient[];
@@ -84,6 +85,7 @@ export interface NewMeal {
   description?: string | null;
   photo_url?: string | null;
   servings?: number;
+  cooked_weight_grams?: number | null;
   ingredients?: IngredientInput[];
 }
 

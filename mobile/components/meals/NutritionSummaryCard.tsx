@@ -14,6 +14,7 @@ type NutritionSummaryCardProps = {
   per100g: NutritionOut;
   servings: number;
   totalGrams: number;
+  cookedWeightGrams?: number | null;
   manualCount: number;
 };
 
@@ -28,7 +29,7 @@ function formatAmount(value: number): string {
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
 }
 
-export function NutritionSummaryCard({ perMeal, per100g, servings, totalGrams, manualCount }: NutritionSummaryCardProps) {
+export function NutritionSummaryCard({ perMeal, per100g, servings, totalGrams, cookedWeightGrams, manualCount }: NutritionSummaryCardProps) {
   const colors = useThemeColor();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [active, setActive] = useState<NutritionTab>('per_meal');
@@ -36,7 +37,9 @@ export function NutritionSummaryCard({ perMeal, per100g, servings, totalGrams, m
   const nutrition =
     active === 'per_meal' ? perMeal : active === 'per_100g' ? per100g : perPortion(perMeal, servings);
 
-  const footnote = `${Math.round(totalGrams)}g total${
+  const footnote = `${Math.round(totalGrams)}g raw${
+    cookedWeightGrams ? ` · ${Math.round(cookedWeightGrams)}g cooked` : ''
+  }${
     manualCount > 0
       ? ` · includes ${manualCount} manually-entered ingredient${manualCount === 1 ? '' : 's'}`
       : ''
