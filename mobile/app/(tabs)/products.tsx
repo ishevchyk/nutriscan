@@ -16,6 +16,7 @@ export default function ProductsScreen() {
   const { products, loaded, loadProducts } = useProductStore();
   const { groups, loaded: groupsLoaded, fetchGroups, activeGroupFilter, setActiveGroupFilter } = useGroupStore();
   const [initializing, setInitializing] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
   const colors = useThemeColor();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
@@ -32,17 +33,31 @@ export default function ProductsScreen() {
     await loadProducts(groupId ?? undefined);
   }
 
+  const filteredProducts = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return products;
+    return products.filter(
+      (p) => p.name.toLowerCase().includes(query) || (p.brand ?? '').toLowerCase().includes(query)
+    );
+  }, [products, searchQuery]);
+
   return (
     <View style={styles.container}>
       <View style={styles.metaRow}>
-        <Text style={styles.metaLabel}>{products.length} entries in library</Text>
+        <Text style={styles.metaLabel}>{filteredProducts.length} entries in library</Text>
         <Pressable style={styles.recentlyDeleted} onPress={() => router.push('/recently-deleted')}>
           <MaterialDesignIcons name="archive-outline" size={14} color={colors.textSecondary} />
           <Text style={styles.metaLabel}>Recently deleted</Text>
         </Pressable>
       </View>
 
-      <TextInput placeholder="Search library..." style={styles.searchInput}/>
+      <TextInput
+        placeholder="Search library..."
+        placeholderTextColor={colors.placeholder}
+        style={styles.searchInput}
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+      />
 
       <View style={styles.groupsContainer}>
         <View style={styles.groupsHeader}>
@@ -61,12 +76,14 @@ export default function ProductsScreen() {
 
       {initializing && <ActivityIndicator size="large" color={colors.primary} />}
 
-      {loaded && products.length === 0 && (
-        <Text style={styles.placeholder}>Your product library will appear here.</Text>
+      {loaded && filteredProducts.length === 0 && (
+        <Text style={styles.placeholder}>
+          {searchQuery.trim() ? 'No products match your search.' : 'Your product library will appear here.'}
+        </Text>
       )}
 
       <FlatList
-        data={products}
+        data={filteredProducts}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
             <ProductCard item={item} />
@@ -115,6 +132,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 8,
       paddingHorizontal: 10,
       backgroundColor: colors.surface,
+      color: colors.text,
     },
     groupsContainer: {
       gap: Spacing.sm,
