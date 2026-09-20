@@ -3,6 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 
 import { API_BASE_URL, SECURE_STORE_REFRESH_KEY } from '../constants/env';
 import { useAuthStore } from '../store/authStore';
+import { logApiError, logApiRequest, logApiResponse } from '../utils/debugLogger';
 import {authApi} from "./authApi";
 
 // Main intercepted instance for all authenticated requests
@@ -16,6 +17,7 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  logApiRequest(config);
   return config;
 });
 
@@ -31,11 +33,15 @@ function processPendingQueue(error: unknown, token: string | null) {
 }
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    logApiResponse(response);
+    return response;
+  },
   async (error) => {
     const originalRequest = error.config;
 
     if (error.response?.status !== 401 || originalRequest._retry) {
+      logApiError(error);
       return Promise.reject(error);
     }
 
