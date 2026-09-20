@@ -5,12 +5,17 @@ import { useRouter } from 'expo-router';
 import { Spacing, ThemeColors } from '../constants/theme';
 import { useThemeColor } from '../hooks/useThemeColor';
 import { useProductStore, Product } from '../store/productStore';
+import { useGroupStore } from '../store/groupStore';
 import { usePickerStore } from '../store/pickerStore';
 import { ProductPickerItem } from '../components/products/ProductPickerItem';
+import { GroupFilterChips } from '../components/groups/GroupFilterChips';
 
 export default function ProductPickerScreen() {
   const { products, loaded, loadProducts } = useProductStore();
+  const { groups, loaded: groupsLoaded, fetchGroups } = useGroupStore();
   const [query, setQuery] = useState('');
+  // Local to the picker so it doesn't disturb the Products tab's own group filter.
+  const [groupFilter, setGroupFilter] = useState<string | null>(null);
   const colors = useThemeColor();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
@@ -19,7 +24,10 @@ export default function ProductPickerScreen() {
     if (!loaded) {
       loadProducts();
     }
-  }, [loaded]);
+    if (!groupsLoaded) {
+      fetchGroups();
+    }
+  }, [loaded, groupsLoaded]);
 
   // Resolves the pick() promise with null if the screen is dismissed
   // (e.g. swipe-back) without an explicit select/cancel action.
@@ -36,7 +44,14 @@ export default function ProductPickerScreen() {
     router.back();
   }
 
-  const filtered = products.filter((p) => p.name.toLowerCase().includes(query.trim().toLowerCase()));
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return products.filter((p) => {
+      if (groupFilter && !p.groups.some((g) => g.id === groupFilter)) return false;
+      if (!q) return true;
+      return p.name.toLowerCase().includes(q) || (p.brand ?? '').toLowerCase().includes(q);
+    });
+  }, [products, query, groupFilter]);
 
   return (
     <View style={styles.container}>
@@ -48,6 +63,15 @@ export default function ProductPickerScreen() {
         onChangeText={setQuery}
         autoFocus
       />
+
+      <View style={styles.groupsContainer}>
+        <GroupFilterChips
+          groups={groups}
+          loaded={groupsLoaded}
+          activeGroupFilter={groupFilter}
+          onSelect={setGroupFilter}
+        />
+      </View>
 
       {loaded && filtered.length === 0 && <Text style={styles.placeholder}>No products found.</Text>}
 
@@ -73,6 +97,7 @@ function createStyles(colors: ThemeColors) {
       backgroundColor: colors.surface,
       color: colors.text,
     },
+    groupsContainer: { marginBottom: Spacing.md },
     placeholder: { color: colors.textSecondary, textAlign: 'center', marginTop: 40 },
   });
 }

@@ -14,8 +14,8 @@ export function sanitizeDecimalInput(raw: string): string {
     return cleaned.slice(0, firstDot + 1) + cleaned.slice(firstDot + 1).replace(/\./g, '');
 }
 
-export function formatMacro(value: number | null): string {
-    return value == null ? '-' : value.toFixed(1);
+export function formatMacro(value: number | null, fixed?: number): string {
+    return value == null ? '-' : value.toFixed(fixed ?? 1);
 }
 
 /** Rounds to 1 decimal place, dropping the decimal when it's a whole number (e.g. 150 not 150.0). */
