@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet } from 'react-native';
+import { ActivityIndicator, Alert, Keyboard, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { Spacing, ThemeColors } from '../../constants/theme';
@@ -25,6 +25,8 @@ export default function TrackerScreen() {
     entriesBySlot,
     summary,
     loaded,
+    loading,
+    summaryLoading,
     setDate,
     loadDay,
     fetchSummary,
@@ -107,33 +109,41 @@ export default function TrackerScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <DateNavigator
-        dateLabel={formatDateLabel(date)}
-        entryCount={entryCount}
-        onPrev={handlePrev}
-        onNext={handleNext}
-        isCalendarOpen={isCalendarOpen}
-        onToggleCalendar={() => setIsCalendarOpen((open) => !open)}
-      />
-
-      {isCalendarOpen && <CalendarView selectedDate={date} onSelectDate={setDate} />}
-
-      <CaloriesSummaryCard totals={summary?.totals ?? { calories: 0, protein: 0, fat: 0, carbs: 0 }} goals={summary?.goals ?? null} />
-
-      {MEAL_SLOTS.map((slot) => (
-        <MealSlotSection
-          key={slot}
-          slot={slot}
-          entries={entriesBySlot[slot]}
-          products={products}
-          meals={meals}
-          mealDefaultsCache={mealDefaultsCache}
-          onAddPress={() => handleAddToSlot(slot)}
-          onDeleteEntry={(id) => handleDelete(id, slot)}
-          onUpdateAmount={handleUpdateAmount}
+    <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+      <Pressable style={styles.tapCatcher} onPress={() => Keyboard.dismiss()}>
+        <DateNavigator
+          dateLabel={formatDateLabel(date)}
+          entryCount={entryCount}
+          onPrev={handlePrev}
+          onNext={handleNext}
+          isCalendarOpen={isCalendarOpen}
+          onToggleCalendar={() => setIsCalendarOpen((open) => !open)}
         />
-      ))}
+
+        {isCalendarOpen && <CalendarView selectedDate={date} onSelectDate={setDate} />}
+
+        {loading || summaryLoading ? (
+          <ActivityIndicator color={colors.primary} style={styles.dayIndicator} />
+        ) : (
+          <>
+            <CaloriesSummaryCard totals={summary?.totals ?? { calories: 0, protein: 0, fat: 0, carbs: 0 }} goals={summary?.goals ?? null} />
+
+            {MEAL_SLOTS.map((slot) => (
+              <MealSlotSection
+                key={slot}
+                slot={slot}
+                entries={entriesBySlot[slot]}
+                products={products}
+                meals={meals}
+                mealDefaultsCache={mealDefaultsCache}
+                onAddPress={() => handleAddToSlot(slot)}
+                onDeleteEntry={(id) => handleDelete(id, slot)}
+                onUpdateAmount={handleUpdateAmount}
+              />
+            ))}
+          </>
+        )}
+      </Pressable>
     </ScrollView>
   );
 }
@@ -143,9 +153,10 @@ function createStyles(colors: ThemeColors) {
     container: {
       padding: Spacing.xl,
       backgroundColor: colors.pageBackground,
-      gap: Spacing.lg,
       paddingBottom: Spacing.xl * 2,
     },
+    tapCatcher: { gap: Spacing.lg },
     spinner: { marginTop: 40 },
+    dayIndicator: { marginTop: Spacing.xl },
   });
 }

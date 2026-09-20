@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { ThemeColors, Typography } from '../../constants/theme';
+import { Radii, Spacing, ThemeColors, Typography } from '../../constants/theme';
 import { useThemeColor } from '../../hooks/useThemeColor';
 import { formatAmount, sanitizeDecimalInput } from '../../utils/formatUtils';
 
@@ -32,7 +32,7 @@ export function EditableAmountStat({ grams, onCommit }: EditableAmountStatProps)
 
   if (editing) {
     return (
-      <View style={styles.editRow}>
+      <View style={styles.pill}>
         <TextInput
           style={styles.input}
           value={text}
@@ -43,22 +43,19 @@ export function EditableAmountStat({ grams, onCommit }: EditableAmountStatProps)
           autoFocus
           selectTextOnFocus
         />
-        <Text style={styles.statLabel}>amount</Text>
       </View>
     );
   }
 
   return (
-    <Pressable onPress={() => setEditing(true)} hitSlop={8}>
-      <Text style={styles.statValue}>{formatAmount(grams)}g</Text>
-      <Text style={styles.statLabel}>amount</Text>
+    <Pressable style={styles.pill} onPress={() => setEditing(true)} hitSlop={8}>
+      <Text style={styles.pillText}>{formatAmount(grams)}g</Text>
     </Pressable>
   );
 }
 
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
-    editRow: { alignItems: 'center' },
     input: {
       fontFamily: Typography.fontFamily.monoBold,
       fontSize: Typography.fontSize.sm,
@@ -69,17 +66,22 @@ function createStyles(colors: ThemeColors) {
       borderBottomWidth: 1,
       borderBottomColor: colors.primary,
     },
-    statValue: {
+    pill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: Radii.lg,
+      paddingHorizontal: Spacing.md,
+      paddingVertical: Spacing.xs,
+      height: '100%',
+      width: 60,
+    },
+    pillText: {
       fontFamily: Typography.fontFamily.monoBold,
       fontSize: Typography.fontSize.sm,
       color: colors.text,
-      textAlign: 'center',
-    },
-    statLabel: {
-      fontFamily: Typography.fontFamily.mono,
-      fontSize: Typography.fontSize.xxs,
-      textTransform: 'uppercase',
-      color: colors.textSecondary,
       textAlign: 'center',
     },
   });
