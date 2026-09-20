@@ -1,7 +1,8 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 
-import { Radii, Spacing, ThemeColors, Typography } from '../../constants/theme';
+import { Spacing, ThemeColors, Typography } from '../../constants/theme';
 import { useThemeColor } from '../../hooks/useThemeColor';
 import { LogEntry } from '../../store/logStore';
 import { Product } from '../../store/productStore';
@@ -9,12 +10,14 @@ import { computeEntryTotalGrams, formatSourceExtra } from '../../utils/logUtils'
 import { formatAmount } from '../../utils/formatUtils';
 import { EditableAmountStat } from './EditableAmountStat';
 import { SourceBadge } from './SourceBadge';
+import { SwipeableRow } from './SwipeableRow';
 
 type LogEntryCardProps = {
   entry: LogEntry;
   product?: Product;
   mealName?: string;
   adjustedCount: number;
+  isLast: boolean;
   onDelete: () => void;
   onUpdateAmount: (grams: number) => void;
 };
@@ -28,9 +31,10 @@ function formatTime(iso: string): string {
 // contract gap to raise separately, not something to patch client-side.
 const MANUAL_ENTRY_FALLBACK_NAME = 'Manual entry';
 
-export function LogEntryCard({ entry, product, mealName, adjustedCount, onDelete, onUpdateAmount }: LogEntryCardProps) {
+export function LogEntryCard({ entry, product, mealName, adjustedCount, isLast, onDelete, onUpdateAmount }: LogEntryCardProps) {
   const colors = useThemeColor();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const [collapsed, setCollapsed] = useState(true);
 
   const name =
     entry.source_type === 'product'
@@ -42,58 +46,57 @@ export function LogEntryCard({ entry, product, mealName, adjustedCount, onDelete
   const totalGrams = computeEntryTotalGrams(entry);
 
   return (
-    <View style={styles.card}>
-      <View style={styles.topRow}>
-        <Text style={styles.name} numberOfLines={1}>
-          {name}
-        </Text>
-        <Text style={styles.kcal}>{Math.round(entry.macros.calories)}<Text style={styles.metaText}>KCAL</Text></Text>
-        <Pressable style={styles.deleteButton} onPress={onDelete} hitSlop={8}>
-          <Text style={styles.deleteText}>×</Text>
-        </Pressable>
-      </View>
-
-      <View style={styles.metaRow}>
-        <Text style={styles.metaText}>{formatTime(entry.logged_at)}</Text>
-        <Text style={styles.metaDot}>·</Text>
-        <SourceBadge source={entry.source_type} />
-        <Text style={styles.metaDot}>·</Text>
-        <Text style={styles.metaText}>{formatSourceExtra(entry, product)}</Text>
-        {adjustedCount > 0 && (
-          <>
-            <Text style={styles.metaDot}>·</Text>
-            <Text style={styles.adjustedTag}>
-              {adjustedCount} INGREDIENT{adjustedCount === 1 ? '' : 'S'} ADJUSTED
+    <SwipeableRow onDelete={onDelete}>
+      <View style={[styles.card, !isLast && styles.cardDivider]}>
+        <View style={styles.cardIndicator} />
+        <View style={styles.content}>
+          <Pressable style={styles.headerRow} onPress={() => setCollapsed(!collapsed)}>
+            <Text style={styles.name} numberOfLines={1}>
+              {name}
             </Text>
-          </>
-        )}
-      </View>
+            <Text style={styles.kcal}>{Math.round(entry.macros.calories)}<Text style={styles.metaText}>KCAL</Text></Text>
+          </Pressable>
 
-      <View style={styles.statsRow}>
-        <View style={styles.stat}>
-          {totalGrams != null ? (
-            <EditableAmountStat grams={totalGrams} onCommit={onUpdateAmount} />
-          ) : (
-            <>
-              <Text style={styles.statValue}>{formatAmount(entry.macros.calories)}</Text>
-              <Text style={styles.statLabel}>kcal</Text>
-            </>
+          {!collapsed && (
+            <View>
+              <View style={styles.metaRow}>
+                <Text style={styles.metaText}>{formatTime(entry.logged_at)}</Text>
+                <Text style={styles.metaDot}>·</Text>
+                <SourceBadge source={entry.source_type} />
+                <Text style={styles.metaDot}>·</Text>
+                <Text style={styles.metaText}>{formatSourceExtra(entry, product)}</Text>
+                {adjustedCount > 0 && (
+                  <>
+                    <Text style={styles.metaDot}>·</Text>
+                    <Text style={styles.adjustedTag}>
+                      {adjustedCount} INGREDIENT{adjustedCount === 1 ? '' : 'S'} ADJUSTED
+                    </Text>
+                  </>
+                )}
+              </View>
+
+              <View style={styles.statsRow}>
+                <View style={styles.stat}>
+                  <Text style={styles.statValue}>{formatAmount(entry.macros.protein)}g</Text>
+                  <Text style={styles.statLabel}>protein</Text>
+                </View>
+                <View style={styles.stat}>
+                  <Text style={styles.statValue}>{formatAmount(entry.macros.fat)}g</Text>
+                  <Text style={styles.statLabel}>fat</Text>
+                </View>
+                <View style={styles.stat}>
+                  <Text style={styles.statValue}>{formatAmount(entry.macros.carbs)}g</Text>
+                  <Text style={styles.statLabel}>carbs</Text>
+                </View>
+                {totalGrams != null && (
+                  <EditableAmountStat grams={totalGrams} onCommit={onUpdateAmount} />
+                )}
+              </View>
+            </View>
           )}
         </View>
-        <View style={styles.stat}>
-          <Text style={styles.statValue}>{formatAmount(entry.macros.protein)}g</Text>
-          <Text style={styles.statLabel}>protein</Text>
-        </View>
-        <View style={styles.stat}>
-          <Text style={styles.statValue}>{formatAmount(entry.macros.fat)}g</Text>
-          <Text style={styles.statLabel}>fat</Text>
-        </View>
-        <View style={styles.stat}>
-          <Text style={styles.statValue}>{formatAmount(entry.macros.carbs)}g</Text>
-          <Text style={styles.statLabel}>carbs</Text>
-        </View>
       </View>
-    </View>
+    </SwipeableRow>
   );
 }
 
@@ -101,13 +104,25 @@ function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     card: {
       backgroundColor: colors.card,
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: Radii.lg,
       padding: Spacing.md,
       gap: Spacing.sm,
+      flexDirection: 'row',
+      flex: 1,
+      justifyContent: 'flex-start',
     },
-    topRow: {
+    cardIndicator: {
+      width: 2,
+      alignSelf: 'stretch',
+      backgroundColor: colors.primary,
+    },
+    content: {
+      flex: 1,
+    },
+    cardDivider: {
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    headerRow: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: Spacing.sm,
@@ -115,23 +130,12 @@ function createStyles(colors: ThemeColors) {
     name: {
       flex: 1,
       fontSize: Typography.fontSize.base,
-      fontWeight: Typography.fontWeight.semibold,
+      fontWeight: Typography.fontWeight.medium,
       color: colors.text,
     },
-    deleteButton: {
-      width: 24,
-      height: 24,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: Radii.md,
-    },
-    deleteText: { color: colors.textSecondary, fontSize: Typography.fontSize.base, lineHeight: Typography.fontSize.base },
     kcal: {
-      fontFamily: Typography.fontFamily.monoBold,
-      fontSize: Typography.fontSize.lg,
+      fontFamily: Typography.fontFamily.monoMedium,
+      fontSize: Typography.fontSize.base,
       color: colors.text,
     },
     metaRow: {
@@ -139,10 +143,11 @@ function createStyles(colors: ThemeColors) {
       alignItems: 'center',
       flexWrap: 'wrap',
       gap: Spacing.xs,
+      marginVertical: Spacing.sm,
     },
     metaText: {
       fontFamily: Typography.fontFamily.mono,
-      fontSize: Typography.fontSize.xxs,
+      fontSize: Typography.fontSize.xs,
       letterSpacing: Typography.letterSpacing.label,
       textTransform: 'uppercase',
       color: colors.textSecondary,
@@ -157,6 +162,7 @@ function createStyles(colors: ThemeColors) {
     },
     statsRow: {
       flexDirection: 'row',
+      alignItems: 'center',
       borderTopWidth: 1,
       borderTopColor: colors.border,
       paddingTop: Spacing.sm,

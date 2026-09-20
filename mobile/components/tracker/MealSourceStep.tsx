@@ -6,7 +6,7 @@ import { useThemeColor } from '../../hooks/useThemeColor';
 import { useMealStore } from '../../store/mealStore';
 import { MealSlot, NewMealLogEntry, useLogStore } from '../../store/logStore';
 import { computeIngredientsNutrition, scaleNutrition } from '../../utils/nutritionUtils';
-import { sanitizeDecimalInput } from '../../utils/formatUtils';
+import { sanitizeDecimalInput, formatAmount } from '../../utils/formatUtils';
 import { toIngredientVM } from '../meals/types';
 import { GroupChip } from '../groups/GroupChip';
 import { CollapsibleSection, SegmentedTabs, Stepper } from '../ui';
@@ -27,11 +27,6 @@ const TABS: { key: TrackerTab; label: string }[] = [
   { key: 'portion', label: 'Portion' },
   { key: 'grams', label: 'By Grams' },
 ];
-
-function formatAmount(value: number): string {
-  const rounded = Math.round(value * 10) / 10;
-  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
-}
 
 export function MealSourceStep({ mealId, mealSlot, onLogged }: MealSourceStepProps) {
   const colors = useThemeColor();

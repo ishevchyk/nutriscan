@@ -6,6 +6,7 @@ export interface ThemeColors {
   border: string;
   primary: string;
   primaryPressed: string;
+  primaryLight: string;
   onPrimary: string;
   text: string;
   textSecondary: string;
@@ -23,6 +24,7 @@ export const Colors: { light: ThemeColors; dark: ThemeColors } = {
     border: '#E5E2DB',
     primary: '#C2703B',
     primaryPressed: '#A85F2E',
+    primaryLight: 'rgb(194 112 59 / 0.5)',
     onPrimary: '#FFFFFF',
     text: '#161311',
     textSecondary: '#6E6659',
@@ -38,6 +40,7 @@ export const Colors: { light: ThemeColors; dark: ThemeColors } = {
     border: '#3A332A',
     primary: '#D98A52',
     primaryPressed: '#C2703B',
+    primaryLight: 'rgb(194 112 59 / 0.5)',
     onPrimary: '#1B1714',
     text: '#F5F2EC',
     textSecondary: '#A69C8C',

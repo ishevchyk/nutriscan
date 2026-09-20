@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import {ActivityIndicator, Pressable, StyleSheet, Text, View} from 'react-native';
 
 import { Radii, Spacing, ThemeColors, Typography } from '../../constants/theme';
 import { useThemeColor } from '../../hooks/useThemeColor';
@@ -16,12 +16,12 @@ type CalendarViewProps = {
 export function CalendarView({ selectedDate, onSelectDate }: CalendarViewProps) {
   const colors = useThemeColor();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const { loggedDays, loggedDaysKey, fetchLoggedDays } = useLogStore();
+  const { loggedDays, loggedDaysKey, fetchLoggedDays, loggedDaysLoading } = useLogStore();
 
   const [{ year: viewYear, month: viewMonth }, setView] = useState(() => getYearMonth(selectedDate));
 
   useEffect(() => {
-    fetchLoggedDays(viewYear, viewMonth);
+    void fetchLoggedDays(viewYear, viewMonth);
   }, [viewYear, viewMonth]);
 
   function handlePrevMonth() {
@@ -46,6 +46,12 @@ export function CalendarView({ selectedDate, onSelectDate }: CalendarViewProps) 
     ...Array(leadingBlanks).fill(null),
     ...Array.from({ length: totalDays }, (_, i) => i + 1),
   ];
+  const trailingBlanks = (7 - (cells.length % 7)) % 7;
+  const paddedCells = [...cells, ...Array(trailingBlanks).fill(null)];
+  const weeks: (number | null)[][] = [];
+  for (let i = 0; i < paddedCells.length; i += 7) {
+    weeks.push(paddedCells.slice(i, i + 7));
+  }
 
   return (
     <View style={styles.card}>
@@ -65,33 +71,40 @@ export function CalendarView({ selectedDate, onSelectDate }: CalendarViewProps) 
         ))}
       </View>
 
-      <View style={styles.grid}>
-        {cells.map((day, index) => {
-          if (day === null) return <View key={`blank-${index}`} style={styles.cell} />;
+      {loggedDaysLoading ? <ActivityIndicator /> : (
+        <View style={styles.grid}>
+          {weeks.map((week, weekIndex) => (
+            <View key={weekIndex} style={styles.row}>
+              {week.map((day, dayIndex) => {
+                if (day === null) return <View key={`blank-${weekIndex}-${dayIndex}`} style={styles.cell} />;
 
-          const dateStr = makeISODate(viewYear, viewMonth, day);
-          const hasData = loggedSet.has(day);
-          const selected = dateStr === selectedDate;
-          const today = isToday(dateStr);
+                const dateStr = makeISODate(viewYear, viewMonth, day);
+                const hasData = loggedSet.has(day);
+                const selected = dateStr === selectedDate;
+                const today = isToday(dateStr);
 
-          return (
-            <Pressable key={dateStr} style={styles.cell} onPress={() => onSelectDate(dateStr)}>
-              <View style={[styles.dayCircle, selected && styles.dayCircleSelected]}>
-                <Text
-                  style={[
-                    styles.dayText,
-                    !hasData && !selected && styles.dayTextMuted,
-                    today && !selected && styles.dayTextToday,
-                    selected && styles.dayTextSelected,
-                  ]}
-                >
-                  {day}
-                </Text>
-              </View>
-            </Pressable>
-          );
-        })}
-      </View>
+                return (
+                  <Pressable key={dateStr} style={styles.cell} onPress={() => onSelectDate(dateStr)}>
+                    <View style={[styles.dayCircle, selected && styles.dayCircleSelected]}>
+                      <Text
+                        style={[
+                          styles.dayText,
+                          !hasData && !selected && styles.dayTextMuted,
+                          today && !selected && styles.dayTextToday,
+                          selected && styles.dayTextSelected,
+                        ]}
+                      >
+                        {day}
+                      </Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ))}
+        </View>
+      )}
+
     </View>
   );
 }
@@ -131,18 +144,20 @@ function createStyles(colors: ThemeColors) {
       flexDirection: 'row',
     },
     weekdayLabel: {
-      width: `${100 / 7}%`,
+      flex: 1,
       textAlign: 'center',
       fontFamily: Typography.fontFamily.mono,
       fontSize: Typography.fontSize.xxs,
       color: colors.textTertiary,
     },
     grid: {
+      flexDirection: 'column',
+    },
+    row: {
       flexDirection: 'row',
-      flexWrap: 'wrap',
     },
     cell: {
-      width: `${100 / 7}%`,
+      flex: 1,
       aspectRatio: 1,
       alignItems: 'center',
       justifyContent: 'center',
@@ -160,10 +175,10 @@ function createStyles(colors: ThemeColors) {
     dayText: {
       fontFamily: Typography.fontFamily.mono,
       fontSize: Typography.fontSize.sm,
-      color: colors.text,
+      color: colors.primary,
     },
     dayTextMuted: {
-      color: colors.textTertiary,
+      color: colors.text,
     },
     dayTextToday: {
       fontFamily: Typography.fontFamily.monoMedium,

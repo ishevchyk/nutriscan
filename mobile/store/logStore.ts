@@ -212,10 +212,42 @@ export const useLogStore = create<LogState>((set, get) => ({
   },
 
   updateEntry: async (id, patch) => {
-    const { data } = await api.patch<LogEntry>(`/log/${id}`, patch);
-    await get().loadDay();
-    await get().fetchSummary();
-    return data;
+    const previous = get().entriesBySlot;
+    const slot = MEAL_SLOTS.find((s) => previous[s].some((e) => e.id === id));
+
+    // Optimistic update: reflect the new amount immediately rather than
+    // waiting on the round trip (and definitely not a full loadDay(), which
+    // would blank the whole screen while refetching). Macros stay stale
+    // until the PATCH response lands -- recomputing them client-side would
+    // duplicate the backend's nutrition-scaling logic (portion/cooked-weight
+    // ratios, meal ingredient scaling), which is exactly the kind of
+    // complexity this app avoids doing offline (see CLAUDE.md).
+    if (slot && patch.quantity_grams != null) {
+      set({
+        entriesBySlot: {
+          ...previous,
+          [slot]: previous[slot].map((e) => (e.id === id ? { ...e, quantity_grams: patch.quantity_grams! } : e)),
+        },
+      });
+    }
+
+    try {
+      const { data } = await api.patch<LogEntry>(`/log/${id}`, patch);
+      set((state) => ({
+        entriesBySlot: slot
+          ? { ...state.entriesBySlot, [slot]: state.entriesBySlot[slot].map((e) => (e.id === id ? data : e)) }
+          : state.entriesBySlot,
+      }));
+      // Refresh the day's totals since this entry's macros may have shifted
+      // them -- fetched directly (not via fetchSummary()) so summaryLoading
+      // never flips and the meal list doesn't blank out for this refresh.
+      const { data: summary } = await api.get<LogSummary>('/log/summary', { params: { date: get().date } });
+      set({ summary });
+      return data;
+    } catch (err) {
+      set({ entriesBySlot: previous });
+      throw err;
+    }
   },
 
   removeEntry: async (id, slot) => {

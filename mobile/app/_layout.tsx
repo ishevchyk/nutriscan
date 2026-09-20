@@ -1,5 +1,6 @@
 import {useEffect} from 'react';
 import {Stack} from 'expo-router';
+import {GestureHandlerRootView} from 'react-native-gesture-handler';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
 import {
@@ -32,13 +33,14 @@ export default function RootLayout() {
     }
 
     return (
+        <GestureHandlerRootView style={{flex: 1}}>
         <SafeAreaProvider>
             <Stack
                 screenOptions={{
                     header: ({options}) => (
                         <ScreenHeader
                             headerTitle={options.title ?? ''}
-                            rightAction={backAction('Products')}
+                            rightAction={backAction('Back')}
                         />
                     ),
                 }}>
@@ -76,9 +78,7 @@ export default function RootLayout() {
                 <Stack.Screen
                     name="recently-deleted"
                     options={{
-                        header: () => (
-                            <ScreenHeader headerTitle="Recently deleted" rightAction={backAction('Back')}/>
-                        ),
+                        title: 'Recently deleted',
                     }}
                 />
                 <Stack.Screen
@@ -158,5 +158,6 @@ export default function RootLayout() {
                 />
             </Stack>
         </SafeAreaProvider>
+        </GestureHandlerRootView>
     );
 }
