@@ -114,25 +114,6 @@ export interface NewPortion {
 
 export type PortionPatch = Partial<NewPortion>;
 
-function toIngredientInput(ing: MealIngredient): IngredientInput {
-  if (ing.is_linked && ing.product_id) {
-    return { product_id: ing.product_id, input_amount: ing.input_amount, input_unit: ing.input_unit };
-  }
-  return {
-    name: ing.name,
-    brand: ing.brand,
-    input_amount: ing.input_amount,
-    input_unit: ing.input_unit,
-    calories: ing.calories,
-    protein: ing.protein,
-    fat: ing.fat,
-    carbs: ing.carbs,
-    fiber: ing.fiber,
-    sugar: ing.sugar,
-    salt: ing.salt,
-  };
-}
-
 function toSummary(meal: Meal): MealSummary {
   return { id: meal.id, name: meal.name, photo_url: meal.photo_url, updated_at: meal.updated_at };
 }
@@ -247,10 +228,8 @@ export const useMealStore = create<MealState>((set, get) => ({
   },
 
   removeIngredient: async (mealId, ingredientId) => {
-    const current = get().selected;
-    if (!current || current.id !== mealId) return;
-    const ingredients = current.ingredients.filter((i) => i.id !== ingredientId).map(toIngredientInput);
-    await get().updateMeal(mealId, { ingredients });
+    await api.delete(`/meals/${mealId}/ingredients/${ingredientId}`);
+    await get().fetchMeal(mealId);
   },
 
   relinkIngredient: async (mealId, ingredientId, productId, quantity) => {
