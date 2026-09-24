@@ -12,8 +12,10 @@ import {
 import {backAction, ScreenHeader} from "../components/navigation/ScreenHeader";
 import {router} from "expo-router";
 import {usePickerStore} from "../store/pickerStore";
+import {initStoreDebugLogging} from "../utils/debugStoreLogger";
 
 SplashScreen.preventAutoHideAsync();
+initStoreDebugLogging();
 
 export default function RootLayout() {
     const [fontsLoaded] = useFonts({
