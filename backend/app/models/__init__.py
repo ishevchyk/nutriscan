@@ -10,6 +10,8 @@ from app.models.product_unit_conversions import ProductUnitConversion
 from app.models.user_goal import UserGoal
 from app.models.log_entry import LogEntry
 from app.models.log_entry_meal_ingredient import LogEntryMealIngredient
+from app.models.user_settings import UserSettings
+from app.models.user_hidden_group import UserHiddenGroup
 
 __all__ = [
     "User",
@@ -24,4 +26,6 @@ __all__ = [
     "UserGoal",
     "LogEntry",
     "LogEntryMealIngredient",
+    "UserSettings",
+    "UserHiddenGroup",
 ]

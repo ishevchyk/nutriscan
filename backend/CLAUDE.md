@@ -9,10 +9,19 @@
 - Soft deletes only — never hard delete products or meals, **except** `log_entries`, `meal_portions`, and `user_goals` (see Tracking & Goals below) — those are hard-deleted/overwritten
 
 ## Schema (current + planned)
-Implemented: `users`, `products`, `refresh_tokens`, `groups`, `product_groups`, `meals`, `meal_ingredients`, `meal_portions` (full CRUD via `meals.py` router, including ingredients and portions sub-resources), `user_goals` (`goals.py`), `log_entries`, `log_entry_meal_ingredients` (`log.py` + `tracking.py`).
+Implemented: `users`, `products`, `refresh_tokens`, `groups`, `product_groups`, `meals`, `meal_ingredients`, `meal_portions` (full CRUD via `meals.py` router, including ingredients and portions sub-resources), `user_goals` (`goals.py`), `log_entries`, `log_entry_meal_ingredients` (`log.py` + `tracking.py`), `user_settings` (`settings.py`), `user_hidden_groups` (endpoints in `groups.py`).
 
-Not yet implemented (see README section 6 for full column definitions):
-- `user_settings`, `user_hidden_groups` — Phase 5 (User Settings)
+Not yet implemented (see README section 6 for full column definitions) — the rest of README Phase 5 ("Social Sign-In, Profile & Settings"), out of scope for the "User Settings" slice above:
+- `users.role` / `users.disabled_at`, `user_auth_identities` (social sign-in — separately deferred, blocked on Apple Developer Program enrollment), `user_profiles`
+- `/me`, `/profile`, change-password, delete-account endpoints, and the full `/admin/*` router
+
+## User Settings (Phase 5 slice, backend implemented — UI still pending)
+- Endpoint groups: `/settings` (GET/PATCH — PATCH creates the row on first call), `GET /groups/hidden` + `POST`/`DELETE /groups/:id/hide`
+- Unlike `/goals`, `GET /settings` never 404s: every `user_settings` column has a DB default, so there's no meaningful "unset" state — a user who's never called `PATCH /settings` gets `{units: 'metric', timezone: 'UTC', notifications_enabled: true, updated_at: null}` back instead
+- `user_hidden_groups` only ever references system groups (`is_system = true`, checked at the router level — 400 otherwise); hide/un-hide are idempotent (hiding an already-hidden group, or un-hiding one that isn't, are no-ops, not errors) — same pattern as `product_groups`' assign/remove
+- `GET /groups` excludes the current user's hidden system groups by default; pass `?include_hidden=true` for the hide/unhide management screen itself
+- `user_settings.timezone` now drives `/log`, `/log/summary`, and `/log/logged-days`'s day/month boundaries (`app/user_settings.py`'s `get_user_timezone`, defaulting to UTC when no settings row exists) — a "day" is local midnight-to-midnight, not UTC midnight
+- Still open (mobile UI, not backend): preferences screen (units/timezone/notifications toggles), system group visibility screen — see README Phase 5 checklist
 
 ## Tracking & Goals (Phase 4, backend implemented — UI still pending)
 - Endpoint groups: `/goals` (GET/PATCH — PATCH creates the row on first call), `/log` (CRUD + `/log/summary`)
