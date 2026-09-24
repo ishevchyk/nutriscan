@@ -123,3 +123,89 @@ async def test_delete_group_cascades_product_group_rows(client, auth_headers):
     fetched = await client.get(f"/products/{product['id']}", headers=auth_headers)
     assert fetched.status_code == 200
     assert fetched.json()["groups"] == []
+
+
+async def test_list_groups_excludes_hidden_by_default(client, auth_headers):
+    groups = (await client.get("/groups", headers=auth_headers)).json()
+    system_group = next(g for g in groups if g["is_system"])
+
+    hide_resp = await client.post(f"/groups/{system_group['id']}/hide", headers=auth_headers)
+    assert hide_resp.status_code == 204
+
+    remaining = (await client.get("/groups", headers=auth_headers)).json()
+    assert system_group["id"] not in {g["id"] for g in remaining}
+    assert len(remaining) == len(groups) - 1
+
+
+async def test_list_groups_include_hidden_true_shows_hidden(client, auth_headers):
+    groups = (await client.get("/groups", headers=auth_headers)).json()
+    system_group = next(g for g in groups if g["is_system"])
+    await client.post(f"/groups/{system_group['id']}/hide", headers=auth_headers)
+
+    with_hidden = (await client.get("/groups?include_hidden=true", headers=auth_headers)).json()
+    assert system_group["id"] in {g["id"] for g in with_hidden}
+    assert len(with_hidden) == len(groups)
+
+
+async def test_get_hidden_groups_lists_ids(client, auth_headers):
+    groups = (await client.get("/groups", headers=auth_headers)).json()
+    system_group = next(g for g in groups if g["is_system"])
+    await client.post(f"/groups/{system_group['id']}/hide", headers=auth_headers)
+
+    resp = await client.get("/groups/hidden", headers=auth_headers)
+    assert resp.status_code == 200
+    assert resp.json() == [system_group["id"]]
+
+
+async def test_hide_group_is_idempotent(client, auth_headers):
+    groups = (await client.get("/groups", headers=auth_headers)).json()
+    system_group = next(g for g in groups if g["is_system"])
+
+    first = await client.post(f"/groups/{system_group['id']}/hide", headers=auth_headers)
+    second = await client.post(f"/groups/{system_group['id']}/hide", headers=auth_headers)
+    assert first.status_code == 204
+    assert second.status_code == 204
+
+    resp = await client.get("/groups/hidden", headers=auth_headers)
+    assert resp.json() == [system_group["id"]]
+
+
+async def test_hide_custom_group_400(client, auth_headers):
+    custom = (await client.post("/groups", json={"name": "Custom For Hide"}, headers=auth_headers)).json()
+    resp = await client.post(f"/groups/{custom['id']}/hide", headers=auth_headers)
+    assert resp.status_code == 400
+
+
+async def test_hide_nonexistent_group_404(client, auth_headers):
+    resp = await client.post(
+        "/groups/00000000-0000-0000-0000-000000000000/hide", headers=auth_headers
+    )
+    assert resp.status_code == 404
+
+
+async def test_unhide_group(client, auth_headers):
+    groups = (await client.get("/groups", headers=auth_headers)).json()
+    system_group = next(g for g in groups if g["is_system"])
+    await client.post(f"/groups/{system_group['id']}/hide", headers=auth_headers)
+
+    resp = await client.delete(f"/groups/{system_group['id']}/hide", headers=auth_headers)
+    assert resp.status_code == 204
+
+    remaining = (await client.get("/groups", headers=auth_headers)).json()
+    assert system_group["id"] in {g["id"] for g in remaining}
+
+
+async def test_unhide_group_not_hidden_is_idempotent_204(client, auth_headers):
+    groups = (await client.get("/groups", headers=auth_headers)).json()
+    system_group = next(g for g in groups if g["is_system"])
+    resp = await client.delete(f"/groups/{system_group['id']}/hide", headers=auth_headers)
+    assert resp.status_code == 204
+
+
+async def test_hidden_groups_are_scoped_per_user(client, auth_headers, second_user_headers):
+    groups = (await client.get("/groups", headers=auth_headers)).json()
+    system_group = next(g for g in groups if g["is_system"])
+    await client.post(f"/groups/{system_group['id']}/hide", headers=auth_headers)
+
+    other_view = (await client.get("/groups", headers=second_user_headers)).json()
+    assert system_group["id"] in {g["id"] for g in other_view}

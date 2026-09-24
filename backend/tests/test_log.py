@@ -576,3 +576,35 @@ async def test_logged_days_scoped_to_current_user(client, auth_headers, second_u
     resp = await client.get("/log/logged-days?year=2026&month=8", headers=second_user_headers)
     assert resp.status_code == 200
     assert resp.json()["days"] == []
+
+
+async def test_log_day_boundary_respects_user_settings_timezone(client, auth_headers):
+    # 2026-08-21T02:00:00Z is 2026-08-20T22:00:00 in America/New_York (EDT,
+    # UTC-4 in August) -- with the user's timezone set, it must land on the
+    # local day (Aug 20), not the UTC day (Aug 21).
+    await client.patch("/settings", json={"timezone": "America/New_York"}, headers=auth_headers)
+    await client.post(
+        "/log",
+        json={
+            "source_type": "manual",
+            "manual_calories": 300,
+            "manual_protein": 20,
+            "manual_fat": 10,
+            "manual_carbs": 30,
+            "meal_slot": "breakfast",
+            "logged_at": "2026-08-21T02:00:00Z",
+        },
+        headers=auth_headers,
+    )
+
+    local_day = await client.get("/log?date=2026-08-20", headers=auth_headers)
+    assert len(local_day.json()["breakfast"]) == 1
+
+    utc_day = await client.get("/log?date=2026-08-21", headers=auth_headers)
+    assert utc_day.json()["breakfast"] == []
+
+    summary = await client.get("/log/summary?date=2026-08-20", headers=auth_headers)
+    assert summary.json()["totals"]["calories"] == pytest.approx(300)
+
+    logged_days = await client.get("/log/logged-days?year=2026&month=8", headers=auth_headers)
+    assert logged_days.json()["days"] == [20]

@@ -34,19 +34,26 @@ NutriScan is a personal nutrition tracking app that lets users build a library o
 
 | Topic | Decision |
 |---|---|
-| Authentication | Yes — user accounts with cross-device sync |
+| Authentication | Yes — user accounts with cross-device sync. Three sign-in methods: email + password, **Google**, and **Apple** |
+| Sign in with Apple | Required alongside Google: App Store guideline 4.8 requires an equivalent privacy-focused login next to any third-party login, and email + password doesn't count. Offered on **all** platforms (native on iOS, web flow on Android/web) so an Apple-only user can still reach their account on every device |
+| Sign-in identities | One user can have several sign-in methods (password and/or linked Google/Apple identities). Social identities are keyed on the provider's stable user id (`sub`), never on email. A user must always keep at least one working sign-in method |
+| Account linking | **No auto-linking by email.** Password accounts don't verify email, so auto-linking would let someone pre-register a victim's address and inherit their Google sign-ins. If a social sign-in's email matches an existing account, the user is asked to sign in the usual way and connect the provider from Profile → Sign-in methods |
 | Offline mode | **Not implemented** — app requires connectivity |
 | AI scanning | Claude API Vision + in-app AI chat editor |
 | Product groups | Yes — system categories + user-defined custom groups, many-to-many |
 | System group visibility | Users can hide individual system groups from their own view (not delete — just hidden per-user) |
 | Deletion model | Soft delete — 30-day recovery window (Recently Deleted), then hard delete via background job |
 | Social / sharing | TBD — personal-only for now, revisit later |
-| Calorie/macro goals | Single active goal set per user (calories, protein, fat, carbs), user-entered and editable at any time — no goal calculator yet, may add later |
+| Calorie/macro goals | Single active goal set per user (calories, protein, fat, carbs), user-entered and editable at any time from Profile → Daily goals (the Log page links there) — no goal calculator yet, may add later |
 | Meal ingredients | Each ingredient stores its own nutrition snapshot (name, brand, macros) and *optionally* links to a saved product — a meal never requires every ingredient to exist in the Product Library |
 | Linked product deletion | If a linked product is hard-purged, the ingredient's `product_id` is set to `null` (not cascade-deleted) — the ingredient keeps its last-known name/macros, nothing in the meal silently disappears |
 | Ingredient units | Users can enter ingredients in household units (tbsp, tsp, cup, piece, etc.), converted to grams via a per-product `grams_per_unit` factor — conversion is ingredient-specific (a tbsp of sugar ≠ a tbsp of oil), never a single global factor |
 | Display units (metric/imperial) | All data is stored and calculated in metric (grams) always; oz/lb display is a client-side formatting layer driven by `user_settings.units`, not a backend concern |
 | Meal vs. meal slot naming | "Meal" refers to the saved recipe-like entity (ingredients + nutrition); "meal slot" refers to the time-of-day bucket a log entry is filed under (Breakfast/Lunch/Dinner/Snack) — the two are intentionally kept as separate terms to avoid ambiguity |
+| Profile screen | A single **Profile** tab holds identity (display name, avatar, email), body stats, daily goals, preferences (units / timezone / notifications), system group visibility, and account controls. Personal content sits at the top, configuration below. "Settings" is the Preferences section *within* Profile, not a separate screen |
+| Goal editing location | One editor, two entry points: goals are edited in Profile → Daily goals, and the Log page's daily summary has an "Edit goals" link that deep-links there |
+| Body stats | Optional, current values only (no weight history yet), always stored in metric (cm, kg) — imperial is display-only like everything else. Nothing in the app requires them until a goal calculator exists |
+| User roles | Two roles: `user` (default) and `admin`. Admins see an extra **Admin** section on the Profile screen. Role is always enforced server-side — the client only uses it to decide what to render. Nobody can become admin through registration or any regular endpoint |
 
 ---
 
@@ -118,7 +125,32 @@ NutriScan is a personal nutrition tracking app that lets users build a library o
   - **Per-meal-slot buttons** ("+ Add to Breakfast/Lunch/Dinner/Snack") - `meal_slot` is pre-filled by which button was tapped; user goes straight to source selection (Product / Meal / Manual)
   - **Global "+ Log" button** (top of page, not slot-specific) - opens a modal that first asks the user to pick a meal slot (Breakfast / Lunch / Dinner / Snack), then continues into the same source-selection step as above
   - Both paths converge on the same three source options and the same `POST /log` call — the only difference is whether `meal_slot` is chosen implicitly (per-slot button) or explicitly in a first modal step (global button)
-- **Goals**: one active set per user (calories, protein, fat, carbs), entered manually and editable any time. No goal calculator yet — planned for later (see Open Questions)
+- **Goals**: one active set per user (calories, protein, fat, carbs), entered manually and editable any time. No goal calculator yet — planned for later (see Open Questions). Goals are edited in Profile → Daily goals (§3.7); the daily summary's "Edit goals" link deep-links there.
+
+### 3.7 Profile
+- A dedicated **Profile** tab — everything about the user and how the app behaves for them, on one scrollable screen. Sections, top to bottom:
+  - **Header card** - avatar (optional, initials fallback), display name, email. Tapping it opens Edit profile. For users who sign up with Google, display name and avatar are pre-filled from the Google account on first sign-in (editable afterwards); Apple provides the name only, and only on the very first sign-in.
+  - **Body stats** - date of birth, sex, height, current weight, activity level. All optional; shown as a compact summary, and the empty state invites rather than nags. Will feed the goal calculator once it exists (Open Questions #6).
+  - **Daily goals** - calories, protein, fat, carbs: the same single active goal set as §3.6. Shows the calories implied by the macros (4/9/4 kcal per gram) as a non-blocking hint — values that don't add up are allowed. This is the deep-link target of the Log page's "Edit goals".
+  - **Preferences** - units (metric/imperial, display-only), timezone (IANA picker with a "Use device timezone" shortcut; defines where each day starts and ends in the tracker), notifications toggle (stored preference only — no delivery yet, and the UI says so).
+  - **Product groups** - show/hide toggle per system group (per-user, reversible, nothing deleted). Custom group management stays in the Product Library; this section only links to it.
+  - **Account** - sign-in methods, password, log out, delete account.
+    - **Sign-in methods** - shows which of password / Google / Apple are active; connect or disconnect Google and Apple. The last remaining method can't be removed.
+    - **Password** - "Change password" for users who have one; "Set a password" for social-only users (adds password as an extra sign-in method).
+    - **Delete account** - destructive, two-step confirmation by typing "DELETE" (works for every user, including those with no password).
+  - **Admin** *(admins only)* - see §3.8.
+  - Footer: app version, privacy policy, support.
+
+### 3.8 Admin Tools
+- An **Admin** section appears on the Profile screen only when `users.role = 'admin'`. Regular users never see it — not even as a disabled row.
+- Proposed actions (final scope pending, see Open Questions #11):
+  - **Manage system groups** - create and rename the built-in groups every user sees (today that's only possible via seed data). Deleting a system group is deliberately left out: it would silently strip group membership from every user's products.
+  - **User management** - searchable user list (email, sign-up date, sign-in methods, role, status); disable / re-enable an account (blocks every sign-in method and token refresh, data untouched); promote / demote admins.
+  - **App stats** - read-only counts: total users, recent sign-ups, products, meals, log entries. AI scan/chat usage can be added once Phase 7 ships.
+- Guardrails:
+  - An admin can't disable or demote themselves, and the last remaining admin can't be demoted.
+  - Admin tools cover app-wide config and account status only — they never read or edit another user's products, meals, goals, or log (see Open Questions #12).
+  - The first admin is created out of band via a CLI command, never through an endpoint.
 
 ---
 
@@ -131,6 +163,8 @@ NutriScan is a personal nutrition tracking app that lets users build a library o
 | Navigation | Expo Router | File-based routing |
 | Camera | expo-camera | For AI photo scanning |
 | Secure storage | expo-secure-store | JWT token storage |
+| Google sign-in | @react-native-google-signin/google-signin | Native module — requires an Expo development build (won't run in Expo Go) |
+| Apple sign-in | expo-apple-authentication (iOS); web flow on Android | |
 | State management | Zustand | Lightweight, easy to persist |
 | API client | Axios | |
 
@@ -139,6 +173,7 @@ NutriScan is a personal nutrition tracking app that lets users build a library o
 |---|---|---|
 | Framework | React + Vite | Fast dev server |
 | Routing | React Router v6 | |
+| Social sign-in | Google Identity Services + Sign in with Apple JS | |
 | State management | Zustand | Same store logic as mobile where possible |
 
 ### Backend
@@ -148,6 +183,7 @@ NutriScan is a personal nutrition tracking app that lets users build a library o
 | Database | PostgreSQL | Main data store |
 | ORM | SQLAlchemy + Alembic | Schema migrations |
 | Auth | JWT (access + refresh tokens) | PyJWT library |
+| Social token verification | google-auth (Google ID tokens); PyJWT + Apple's public keys (Apple identity tokens) | Backend verifies the provider token, then issues its own JWTs |
 | AI | Anthropic Python SDK | Claude Vision + chat |
 | Hosting | TBD (Railway / Render / Fly.io) | |
 
@@ -175,7 +211,10 @@ NutriScan is a personal nutrition tracking app that lets users build a library o
               │  /meals            │
               │  /goals            │
               │  /log              │
+              │  /me               │
+              │  /profile          │
               │  /settings         │
+              │  /admin            │
               │  /ai/scan          │
               │  /ai/chat          │
               └─────────┬──────────┘
@@ -192,6 +231,7 @@ NutriScan is a personal nutrition tracking app that lets users build a library o
      │  MealPortions │
      │  UserGoals  │
      │  LogEntries │
+     │  UserProfiles │
      │  UserSettings │
      │  UserHiddenGroups │
      └─────────────┘
@@ -205,10 +245,29 @@ NutriScan is a personal nutrition tracking app that lets users build a library o
 ```sql
 id            UUID PRIMARY KEY
 email         TEXT UNIQUE NOT NULL
-password_hash TEXT NOT NULL
+password_hash TEXT           -- null for users who only sign in with Google/Apple
+role          TEXT NOT NULL DEFAULT 'user'   -- 'user' | 'admin'
+disabled_at   TIMESTAMPTZ                    -- set by an admin; blocks login + token refresh, data untouched
 created_at    TIMESTAMPTZ DEFAULT now()
 updated_at    TIMESTAMPTZ DEFAULT now()
 ```
+
+`role` is the only thing that grants admin access (§3.8). It can't be set via registration or any regular endpoint — the first admin is created with a CLI command, later ones are promoted by an existing admin. `disabled_at` is an account-status flag, not a delete: data is untouched and re-enabling restores access.
+
+`email` for an Apple user who chose "Hide My Email" is an Apple relay address (`…@privaterelay.appleid.com`) — treat it as a normal, working email.
+
+### user_auth_identities
+```sql
+id                UUID PRIMARY KEY
+user_id           UUID REFERENCES users(id)
+provider          TEXT NOT NULL      -- 'google' | 'apple'
+provider_subject  TEXT NOT NULL      -- the provider's stable user id (`sub` claim)
+email             TEXT               -- email the provider reported at link time (informational only)
+created_at        TIMESTAMPTZ DEFAULT now()
+UNIQUE (provider, provider_subject)
+UNIQUE (user_id, provider)           -- at most one Google and one Apple identity per user
+```
+A user's sign-in methods = `password_hash IS NOT NULL` plus their rows here. Lookups on social sign-in go through `(provider, provider_subject)`, never through `email`.
 
 ### products
 ```sql
@@ -239,6 +298,7 @@ name          TEXT NOT NULL
 is_system     BOOLEAN DEFAULT false        -- true for built-in groups like Dairy, Fruits, Breakfast, Snacks
 created_at    TIMESTAMPTZ DEFAULT now()
 ```
+System groups are seeded at install and can afterwards be created/renamed by admins (§3.8, `/admin/groups`). Regular users can only hide them (`user_hidden_groups`), never edit them.
 
 ### product_groups
 ```sql
@@ -265,6 +325,21 @@ created_at              TIMESTAMPTZ DEFAULT now()
 updated_at              TIMESTAMPTZ DEFAULT now()
 ```
 Note: no `notifications_enabled` delivery infra exists yet (no push service wired up) — this toggle ships as a stored preference regardless, so the UI and schema are ready whenever push is added (see Open Questions).
+
+### user_profiles
+```sql
+user_id         UUID PRIMARY KEY REFERENCES users(id)
+display_name    TEXT
+avatar_url      TEXT          -- storage pending, see Open Questions #4 / #15
+date_of_birth   DATE          -- not age: age goes stale
+sex             TEXT          -- options pending, see Open Questions #14
+height_cm       NUMERIC
+weight_kg       NUMERIC       -- current weight only, no history (see Open Questions #13)
+activity_level  TEXT          -- 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active'
+created_at      TIMESTAMPTZ DEFAULT now()
+updated_at      TIMESTAMPTZ DEFAULT now()
+```
+All fields nullable — the Profile screen works with an empty row. Kept separate from `users` so the auth table stays minimal. Stored in metric always; `user_settings.units` only affects display.
 
 ### meals
 ```sql
@@ -389,6 +464,16 @@ POST   /auth/register        Create account
 POST   /auth/login           Returns access + refresh tokens
 POST   /auth/refresh         Rotate refresh token
 POST   /auth/logout          Invalidate refresh token
+POST   /auth/google          Body: { id_token } — sign in, or create an account on first use. Returns access + refresh tokens
+POST   /auth/apple           Body: { identity_token, name? } — same as above; name is only sent by Apple on the very first sign-in
+                             Both return 409 { code: 'account_exists' } if the email belongs to an existing account
+                             that isn't linked to this identity (see §2 Account linking)
+
+GET    /auth/identities                 List the current user's sign-in methods ({ has_password, providers: [...] })
+POST   /auth/identities/google          Connect Google to the signed-in account (body: { id_token })
+POST   /auth/identities/apple           Connect Apple to the signed-in account (body: { identity_token })
+DELETE /auth/identities/:provider       Disconnect a provider (409 if it's the last sign-in method)
+POST   /auth/set-password               Add a password to a social-only account (400 if one already exists)
 ```
 
 ### Products
@@ -456,18 +541,36 @@ GET    /log/summary?date=      Daily totals (calories, protein, fat, carbs) vs. 
 GET    /log/logged-days?year=&month=   Day-of-month numbers (1-31) that have at least one log entry that month -- powers the tracker's calendar view (all days are still navigable; unlogged days just render lighter, no highlight)
 ```
 
-### Settings
+### Profile & Settings
 ```
+GET    /me                          Everything the Profile root needs in one call: { user: {id, email, role}, sign_in_methods, profile, settings, goals }
+GET    /profile                     Get current user's profile (display name, avatar, body stats)
+PATCH  /profile                     Update profile (creates the row on first call)
 GET    /settings                    Get current user's settings (units, timezone, notifications)
 PATCH  /settings                    Update settings
-POST   /auth/change-password        Change password
-DELETE /auth/account                Delete account (see Open Questions re: soft vs. hard delete)
+POST   /auth/change-password        Change password (400 for social-only users — use /auth/set-password)
+DELETE /auth/account                Delete account; body { confirm: 'DELETE' } (see Open Questions re: soft vs. hard delete)
 
 GET    /groups/hidden               List system group ids hidden by current user
 POST   /groups/:id/hide             Hide a system group for current user (400 if not is_system)
 DELETE /groups/:id/hide             Un-hide it
 ```
+Goals keep their own `GET`/`PATCH /goals` endpoints (§Goals) — the Profile screen just calls them. Log out uses the existing `POST /auth/logout`. Avatar upload has no endpoint yet (blocked on Open Questions #4).
 Note: once this phase ships, `GET /groups` should exclude hidden system groups by default; add `?include_hidden=true` for the settings screen itself to manage the hide/show list.
+
+### Admin
+```
+All /admin/* routes require role = 'admin', re-checked against the DB on every request → 403 otherwise.
+
+GET    /admin/groups                List system groups (with how many products use each)
+POST   /admin/groups                Create a system group
+PATCH  /admin/groups/:id            Rename a system group
+GET    /admin/users?q=&cursor=      Search/list users (email, created_at, sign-in methods, role, disabled)
+PATCH  /admin/users/:id             Change role and/or disabled status
+                                     400 on self-demote, self-disable, or demoting the last admin
+GET    /admin/stats                 App-wide counts (users, sign-ups last 7/30 days, products, meals, log entries)
+```
+Scope is a proposal — see §3.8 and Open Questions #11.
 
 ### AI
 ```
@@ -547,6 +650,42 @@ On 401 response
 → If refresh also fails → log user out
 ```
 
+### Google / Apple sign-in
+```
+User taps "Continue with Google" / "Continue with Apple"
+→ Native SDK (mobile) or provider JS (web) returns a provider token
+→ POST /auth/google { id_token }  or  POST /auth/apple { identity_token, name? }
+→ Backend verifies signature, issuer, expiry, and audience
+  (Google: must match one of the iOS / Android / web client IDs; Apple: bundle ID or Services ID)
+→ Look up user_auth_identities by (provider, sub)
+   → found            → sign in
+   → not found, email not used by any account → create user (no password) + identity + profile prefill
+   → not found, email already used            → 409 account_exists
+→ From here on: same access/refresh token flow as password login
+```
+
+### Email collision (409 account_exists)
+```
+App shows: "An account with this email already exists. Sign in with your existing method,
+            then connect Google/Apple from Profile → Sign-in methods."
+→ No automatic linking, ever (see §2 Account linking)
+```
+
+### Roles & disabled accounts
+```
+access_token carries a `role` claim
+→ Client uses it only to decide whether to render the Admin section
+
+/admin/* routes
+→ Re-check role from the DB on every request (not just the claim),
+  so a demotion takes effect immediately, not after the token expires
+
+Disabled account (users.disabled_at set)
+→ POST /auth/login, /auth/google and /auth/apple all return 403
+→ POST /auth/refresh fails → client logs the user out
+  (an already-issued access token keeps working until it expires, max 15 min)
+```
+
 ---
 
 ## 10. Build Phases
@@ -583,7 +722,7 @@ On 401 response
 
 ### Phase 4 — Tracking & Goals
 - [x] `user_goals` table + `GET`/`PATCH /goals` endpoints
-- [ ] Goal setting UI (manual entry of calories/protein/fat/carbs)
+- Goal setting UI → moved to Phase 5 (Profile → Daily goals)
 - [x] `log_entries` + `log_entry_meal_ingredients` tables + migrations
 - [x] `/log` CRUD endpoints + `/log/summary` aggregation endpoint
 - [x] Log page UI: daily view grouped by meal slot, add-entry flow (product / meal+portion / manual)
@@ -591,15 +730,61 @@ On 401 response
 - [x] Meal-logging flow: editable per-ingredient grams with live macro recalculation before saving
 - [x] Daily summary UI: totals vs. goals per macro (progress bars/rings)
 
-### Phase 5 — User Settings
+### Phase 5 — Social Sign-In, Profile & Settings
+
+**Social sign-in — deferred, later TODO.** Blocked on enrolling in the Apple Developer Program (needed for any signed iOS build, not just Apple Sign-In specifically — `@react-native-google-signin/google-signin` also requires a signed dev build). The rest of Phase 5 has no dependency on social sign-in and ships first; only the Profile screen's Account → sign-in methods row (connect/disconnect Google & Apple) waits on it. Revisit the three checklists below once enrolled — Android could unblock Google sign-in sooner if that's wanted before Apple lands.
+
+**Social sign-in — setup** *(later TODO — blocked on Apple Developer Program enrollment)*
+- [ ] Google Cloud OAuth client IDs (iOS, Android, web); Apple Services ID, key, and Sign in with Apple capability; secrets in env config
+- [ ] Move mobile to an Expo development build (native sign-in modules don't run in Expo Go)
+
+**Social sign-in — backend** *(later TODO — blocked on Apple Developer Program enrollment)*
+- [ ] Migration: `users.password_hash` nullable + `user_auth_identities` table
+- [ ] Google ID token verification (all three client IDs as accepted audiences)
+- [ ] Apple identity token verification (Apple public keys); persist name on first sign-in; accept private-relay emails
+- [ ] `POST /auth/google` + `POST /auth/apple` (sign in / create, 409 on email collision)
+- [ ] Identity endpoints: list, connect, disconnect (last-method guardrail), `POST /auth/set-password`
+- [ ] Prefill `user_profiles.display_name` / `avatar_url` from the provider on account creation
+- [ ] Tests: new user, returning user, email collision, disconnect-last-method, disabled account on every method
+
+**Social sign-in — UI** *(later TODO — blocked on Apple Developer Program enrollment)*
+- [ ] Login + register screens (built in Phase 1): "Continue with Google" / "Continue with Apple" buttons, on every platform
+- [ ] Email-collision screen with guidance to sign in and connect from Profile
+
+**Backend — data**
+- [ ] `users.role` (`'user'` | `'admin'`, default `'user'`) + `users.disabled_at` columns + migration
+- [ ] `user_profiles` table + migration
 - [ ] `user_settings` table + migration (units, timezone, notifications)
 - [ ] `user_hidden_groups` table + migration
-- [ ] `GET`/`PATCH /settings` endpoints
-- [ ] Change password + delete account endpoints
+- [ ] CLI command to create/promote the first admin (no API path to admin)
+
+**Backend — endpoints**
+- [ ] `GET /me` (user + profile + settings + goals in one response)
+- [ ] `GET`/`PATCH /profile`
+- [ ] `GET`/`PATCH /settings`
+- [ ] Change password + delete account endpoints (delete confirmed by typed "DELETE", no password needed)
 - [ ] Hide/un-hide system group endpoints; update `GET /groups` to exclude hidden ones by default
-- [ ] Settings screen UI: units toggle, timezone, notification toggle
-- [ ] System group visibility management UI (show/hide list, separate from custom group management)
-- [ ] Account section UI: change password, delete account (with confirmation)
+- [ ] `/log`, `/log/summary`, `/log/logged-days` compute day boundaries from `user_settings.timezone` (Phase 4 shipped before this setting existed — verify what it assumes today)
+- [ ] Login and refresh reject disabled accounts
+- [ ] Avatar upload — blocked on Open Questions #4
+
+**Backend — admin**
+- [ ] `require_admin` dependency (DB role check) applied to every `/admin/*` route
+- [ ] System group create/rename endpoints
+- [ ] User list/search + role/disable endpoint, with self and last-admin guardrails
+- [ ] Stats endpoint
+- [ ] Tests: non-admin gets 403 on every `/admin/*` route; guardrail cases
+
+**UI — Profile tab**
+- [ ] Profile tab + root screen with section layout (header, body stats, goals, preferences, groups, account)
+- [ ] Edit profile screen (display name, avatar, body stats), incl. empty / first-run state
+- [ ] Daily goals editor (moved from Phase 4) with implied-calories hint
+- [ ] "Edit goals" link on the Log page's daily summary, deep-linking to Profile → Daily goals
+- [ ] Preferences: units toggle, timezone picker, notifications toggle (with "coming soon" caption)
+- [ ] System group visibility screen (separate from custom group management, links to it)
+- [ ] Account: change password, log out, delete account (two-step, typed "DELETE") — ship now; sign-in methods screen (connect/disconnect Google & Apple) is *later TODO*, blocked with the rest of social sign-in above
+- [ ] Apply `user_settings.units` to every weight/height/quantity display across the app
+- [ ] Admin section, rendered only for `role = 'admin'`: system groups, user management (incl. sign-in methods column), stats
 
 ### Phase 6 — Web & Deploy
 - [ ] React web app (Vite) with shared API client
@@ -636,12 +821,19 @@ On 401 response
 | 3 | Should meals also support AI-assisted creation ("build me a meal with these products")? | **Pending** |
 | 4 | Photo storage for meals: local only, or upload to object storage (S3 / Cloudflare R2)? | **Pending** |
 | 5 | Should custom groups be shareable/reusable across users, or strictly private per user? | **Pending** |
-| 6 | Goal calculator (auto-compute calorie/macro goals from age, weight, activity level, target) | Planned for later — manual entry only for now |
+| 6 | Goal calculator (auto-compute calorie/macro goals from the Profile body stats — age, sex, height, weight, activity level — plus a target) | Planned for later — manual entry only for now; body stats are collected from Phase 5 so the inputs are ready |
 | 7 | Should `user_goals` keep a history (versioned by date) instead of a single overwritten row, so past days are checked against the goal active at the time? | **Pending** |
-| 8 | Delete account: hard-delete immediately, or route through the same 30-day recovery pattern as products/meals? | **Pending** |
+| 8 | Delete account: hard-delete immediately, or route through the same 30-day recovery pattern as products/meals? Either way, deleting also removes linked Google/Apple identities (and should revoke the Apple token, which Apple requires for account deletion) | **Pending** |
 | 9 | Notification settings: no push infra exists yet — is the toggle a stub for future use, or does Phase 5 need to build actual delivery? | Stub only for now — see Phase 5 |
 | 10 | Global "+ Log" modal: should the meal-slot-selection step default to a guess based on current time of day (e.g. auto-select "Lunch" at 1pm, user can still change it), or always start unselected? | **Pending** |
+| 11 | Admin scope: which proposed actions (§3.8 — system groups, user management, stats) ship in Phase 5, and are others needed? | **Pending** |
+| 12 | Should admins ever see a user's food data (e.g. for support), or stay limited to account status + app-wide config? | Proposed: no access |
+| 13 | Weight history: keep only current weight, or track weigh-ins over time (also a natural input for a goal calculator / progress chart)? | Current only for now |
+| 14 | `sex` field: which options and wording? Needed for BMR formulas in a goal calculator, should include a "prefer not to say" option | **Pending** |
+| 15 | Avatar: depends on #4 (object storage) — ship initials-only until then? | Partly solved — Google users get their Google photo URL as `avatar_url` without any storage; uploads still depend on #4, initials fallback ships regardless |
+| 16 | Should social-only users be nudged to also set a password (or connect a second provider) as a backup sign-in method? | **Pending** |
+| 17 | Email changes: if a user's Google/Apple email changes, do we update `users.email`, or keep the email from sign-up? | Proposed: keep sign-up email; `user_auth_identities.email` is informational only |
 
 ---
 
-*Last updated: August 26, 2026. Update this file as decisions are made.*
+*Last updated: September 24, 2026. Update this file as decisions are made.*

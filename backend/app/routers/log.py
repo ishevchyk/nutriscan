@@ -1,5 +1,6 @@
 from datetime import date, datetime, time, timedelta, timezone
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
@@ -29,17 +30,18 @@ from app.schemas.log import (
 )
 from app.nutrition import compute_reference_grams
 from app.tracking import LOG_MACROS, calculate_log_entries_macros
+from app.user_settings import get_user_timezone
 
 router = APIRouter(prefix="/log", tags=["log"])
 
 
-def _day_bounds_utc(day: date) -> tuple[datetime, datetime]:
-    # TODO(Phase 5): user_settings.timezone doesn't exist yet, so "day" is
-    # computed in UTC for now. Once user_settings lands, swap this for the
-    # user's own timezone -- the `date` query param on GET /log and
-    # GET /log/summary stays the same, only this boundary math changes.
-    start = datetime.combine(day, time.min, tzinfo=timezone.utc)
-    return start, start + timedelta(days=1)
+def _day_bounds(day: date, tz: ZoneInfo) -> tuple[datetime, datetime]:
+    # "Day" is midnight-to-midnight in the user's own timezone
+    # (user_settings.timezone, defaulting to UTC), converted to UTC for the
+    # logged_at range query.
+    start_local = datetime.combine(day, time.min, tzinfo=tz)
+    end_local = start_local + timedelta(days=1)
+    return start_local.astimezone(timezone.utc), end_local.astimezone(timezone.utc)
 
 
 async def _get_owned_log_entry(db: AsyncSession, entry_id: UUID, current_user: User) -> LogEntry:
@@ -214,7 +216,8 @@ async def list_log_entries(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    start, end = _day_bounds_utc(date)
+    tz = await get_user_timezone(db, current_user.id)
+    start, end = _day_bounds(date, tz)
     result = await db.execute(
         select(LogEntry)
         .where(
@@ -365,7 +368,8 @@ async def get_log_summary(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    start, end = _day_bounds_utc(date)
+    tz = await get_user_timezone(db, current_user.id)
+    start, end = _day_bounds(date, tz)
     result = await db.execute(
         select(LogEntry).where(
             LogEntry.user_id == current_user.id,
@@ -400,9 +404,10 @@ async def get_logged_days(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    start = datetime(year, month, 1, tzinfo=timezone.utc)
+    tz = await get_user_timezone(db, current_user.id)
+    start = datetime(year, month, 1, tzinfo=tz).astimezone(timezone.utc)
     next_month, next_year = (1, year + 1) if month == 12 else (month + 1, year)
-    end = datetime(next_year, next_month, 1, tzinfo=timezone.utc)
+    end = datetime(next_year, next_month, 1, tzinfo=tz).astimezone(timezone.utc)
 
     result = await db.execute(
         select(LogEntry.logged_at).where(
@@ -411,5 +416,8 @@ async def get_logged_days(
             LogEntry.logged_at < end,
         )
     )
-    days = sorted({logged_at.day for logged_at in result.scalars().all()})
+    # Convert back to the user's local day before extracting the day number --
+    # logged_at is stored/returned in UTC, so an entry near local midnight can
+    # land on a different calendar day locally than it does in UTC.
+    days = sorted({logged_at.astimezone(tz).day for logged_at in result.scalars().all()})
     return LoggedDaysOut(days=days)
