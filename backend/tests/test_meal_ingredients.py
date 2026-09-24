@@ -136,6 +136,65 @@ async def test_relink_to_invalid_product_400(client, auth_headers):
     assert resp.status_code == 400
 
 
+async def test_delete_ingredient(client, auth_headers):
+    product = await _create_product(client, auth_headers, name="Keep Me")
+    meal = await _create_meal(
+        client,
+        auth_headers,
+        ingredients=[
+            {"product_id": product["id"], "input_amount": 100},
+            {"name": "Remove Me", "input_amount": 50},
+        ],
+    )
+    ingredient_id = meal["ingredients"][1]["id"]
+
+    resp = await client.delete(f"/meals/{meal['id']}/ingredients/{ingredient_id}", headers=auth_headers)
+    assert resp.status_code == 204
+
+    fetched = await client.get(f"/meals/{meal['id']}", headers=auth_headers)
+    names = [i["name"] for i in fetched.json()["ingredients"]]
+    assert names == ["Keep Me"]
+
+
+async def test_delete_ingredient_ownership_404(client, auth_headers, second_user_headers):
+    meal = await _create_meal(client, second_user_headers, ingredients=[{"name": "Not Yours", "input_amount": 10}])
+    ingredient_id = meal["ingredients"][0]["id"]
+
+    resp = await client.delete(f"/meals/{meal['id']}/ingredients/{ingredient_id}", headers=auth_headers)
+    assert resp.status_code == 404
+
+
+async def test_delete_ingredient_unaffected_by_other_ingredient_linking_to_deleted_product(
+    client, auth_headers
+):
+    """Regression: removing one ingredient must not require re-validating the
+    product links of every OTHER ingredient still on the meal. Previously
+    ingredient removal resent the full ingredient list via PATCH /meals/:id,
+    which re-checked every linked product_id and 400'd if any of them had
+    since been soft-deleted from the library -- even though that ingredient
+    wasn't the one being removed."""
+    stale_product = await _create_product(client, auth_headers, name="Will Be Deleted")
+    meal = await _create_meal(
+        client,
+        auth_headers,
+        ingredients=[
+            {"product_id": stale_product["id"], "input_amount": 100},
+            {"name": "Remove Me", "input_amount": 50},
+        ],
+    )
+    ingredient_id = meal["ingredients"][1]["id"]
+
+    delete_resp = await client.delete(f"/products/{stale_product['id']}", headers=auth_headers)
+    assert delete_resp.status_code == 204
+
+    resp = await client.delete(f"/meals/{meal['id']}/ingredients/{ingredient_id}", headers=auth_headers)
+    assert resp.status_code == 204
+
+    fetched = await client.get(f"/meals/{meal['id']}", headers=auth_headers)
+    names = [i["name"] for i in fetched.json()["ingredients"]]
+    assert names == ["Will Be Deleted"]
+
+
 async def test_edit_reflected_in_meal_nutrition_on_next_read(client, auth_headers):
     meal = await _create_meal(client, auth_headers, ingredients=[{"name": "Adjustable", "input_amount": 100, "calories": 50}])
     ingredient_id = meal["ingredients"][0]["id"]

@@ -427,6 +427,21 @@ async def update_ingredient(
     return ingredient
 
 
+@router.delete("/{meal_id}/ingredients/{ingredient_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_ingredient(
+    meal_id: UUID,
+    ingredient_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # meal_ingredients is hard-deleted, same as meal_portions -- it's a
+    # sub-resource row, not a product or meal itself, and has no deleted_at
+    # column (see backend/CLAUDE.md's soft-delete exception).
+    ingredient = await _get_owned_ingredient(db, meal_id, ingredient_id, current_user)
+    await db.delete(ingredient)
+    await db.commit()
+
+
 @router.get("/{meal_id}/portions", response_model=list[MealPortionOut])
 async def list_portions(
     meal_id: UUID,
