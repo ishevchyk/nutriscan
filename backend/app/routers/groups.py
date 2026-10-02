@@ -22,7 +22,7 @@ async def list_groups(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    query = select(Group).where(Group.is_system.is_(True) | (Group.user_id == current_user.id))
+    query = select(Group).where(Group.is_system.is_(True) | (Group.user_id == current_user.id)).order_by(func.lower(Group.name))
     if not include_hidden:
         hidden_result = await db.execute(
             select(UserHiddenGroup.group_id).where(UserHiddenGroup.user_id == current_user.id)

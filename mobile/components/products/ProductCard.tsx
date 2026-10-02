@@ -16,7 +16,7 @@ export const ProductCard = memo(function ProductCard({ item }: ProductCardProps)
             name={item.name}
             brand={item.brand}
             onPress={() => router.push({ pathname: '/product/[id]', params: { id: item.id } })}
-            badges={<GroupBadgeRow groups={item.groups} />}
+            // badges={<GroupBadgeRow groups={item.groups} />}
             footer={
                 <ProductMacroFooter
                     calories={item.calories}
