@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pydantic import BaseModel, field_validator
 
 Units = Literal["metric", "imperial"]
+Theme = Literal["light", "dark"]
 
 
 def _validate_timezone(v: str) -> str:
@@ -23,6 +24,7 @@ class SettingsUpdate(BaseModel):
     units: Units | None = None
     timezone: str | None = None
     notifications_enabled: bool | None = None
+    theme: Theme | None = None
 
     @field_validator("timezone")
     @classmethod
@@ -35,6 +37,7 @@ class SettingsOut(BaseModel):
     units: Units
     timezone: str
     notifications_enabled: bool
+    theme: Theme | None
     updated_at: datetime | None
 
     model_config = {"from_attributes": True}

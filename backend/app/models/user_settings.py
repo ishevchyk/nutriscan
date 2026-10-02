@@ -10,9 +10,12 @@ from app.database import Base
 
 class UserSettings(Base):
     """Keyed directly on user_id (no separate id column, README §6) -- every
-    column has a DB default, so there's no meaningful "unset" state the way
-    user_goals' nullable fields have. GET /settings relies on this: it
-    returns defaults instead of 404 when no row exists yet."""
+    column has a DB default and is non-nullable, so there's no meaningful
+    "unset" state the way user_goals' nullable fields have -- except
+    theme, which is deliberately nullable with no default: None means "no
+    override, follow the device's own light/dark setting", distinct from an
+    explicit 'light'. GET /settings relies on the other columns' defaults to
+    return a full object instead of 404ing when no row exists yet."""
 
     __tablename__ = "user_settings"
 
@@ -22,6 +25,7 @@ class UserSettings(Base):
     units: Mapped[str] = mapped_column(Text, nullable=False, server_default="metric")
     timezone: Mapped[str] = mapped_column(Text, nullable=False, server_default="UTC")
     notifications_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    theme: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
