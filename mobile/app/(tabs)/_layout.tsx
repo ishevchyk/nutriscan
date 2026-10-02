@@ -14,7 +14,8 @@ export default function TabsLayout() {
                 <ScreenHeader headerTitle={options.title ?? ''}/>
             ),
             tabBarInactiveTintColor: colors.textSecondary,
-            tabBarActiveTintColor: colors.primary
+            tabBarActiveTintColor: colors.primary,
+            tabBarStyle: {backgroundColor: colors.background}
         }
         }>
             <Tabs.Screen name="tracker" options={{

@@ -168,7 +168,11 @@ export default function AddMeal() {
 
     return (
         <>
-            <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+            <ScrollView
+              style={{ backgroundColor: colors.pageBackground }}
+              contentContainerStyle={styles.container}
+              keyboardShouldPersistTaps="handled"
+            >
                 <View style={styles.titleRow}>
                     <View style={styles.titleField}>
                         <Controller

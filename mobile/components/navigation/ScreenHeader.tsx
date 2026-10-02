@@ -53,7 +53,7 @@ export const backAction = (label: string): HeaderAction => ({
 function createStyles(colors: ThemeColors) {
     return StyleSheet.create({
         container: {
-            backgroundColor: '#fff',
+            backgroundColor: colors.background,
             borderBottomWidth: 1,
             borderBottomColor: colors.border,
         },
