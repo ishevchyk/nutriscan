@@ -26,6 +26,7 @@ async def get_settings(
             units="metric",
             timezone="UTC",
             notifications_enabled=True,
+            theme=None,
             updated_at=None,
         )
     return row

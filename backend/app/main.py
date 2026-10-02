@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.jobs import run_purge_loop
-from app.routers import auth, products, meals, ai, groups, goals, log
+from app.routers import auth, products, meals, ai, groups, goals, log, profile
 from app.routers import settings as settings_router
 
 
@@ -25,6 +25,7 @@ app.include_router(groups.router)
 app.include_router(goals.router)
 app.include_router(log.router)
 app.include_router(settings_router.router)
+app.include_router(profile.router)
 
 
 @app.get("/health", tags=["health"])

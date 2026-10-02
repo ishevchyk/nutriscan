@@ -10,6 +10,7 @@ async def test_get_settings_before_any_patch_returns_defaults(client, auth_heade
     assert body["units"] == "metric"
     assert body["timezone"] == "UTC"
     assert body["notifications_enabled"] is True
+    assert body["theme"] is None
     assert body["updated_at"] is None
 
 
@@ -66,3 +67,22 @@ async def test_settings_are_scoped_per_user(client, auth_headers, second_user_he
     await client.patch("/settings", json={"units": "imperial"}, headers=auth_headers)
     resp = await client.get("/settings", headers=second_user_headers)
     assert resp.json()["units"] == "metric"
+
+
+async def test_patch_settings_theme_dark_then_light(client, auth_headers):
+    resp = await client.patch("/settings", json={"theme": "dark"}, headers=auth_headers)
+    assert resp.json()["theme"] == "dark"
+
+    resp = await client.patch("/settings", json={"theme": "light"}, headers=auth_headers)
+    assert resp.json()["theme"] == "light"
+
+
+async def test_patch_settings_theme_explicit_null_clears_override(client, auth_headers):
+    await client.patch("/settings", json={"theme": "dark"}, headers=auth_headers)
+    resp = await client.patch("/settings", json={"theme": None}, headers=auth_headers)
+    assert resp.json()["theme"] is None
+
+
+async def test_patch_settings_invalid_theme_422(client, auth_headers):
+    resp = await client.patch("/settings", json={"theme": "solarized"}, headers=auth_headers)
+    assert resp.status_code == 422
