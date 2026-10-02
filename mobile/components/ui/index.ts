@@ -5,6 +5,7 @@ export * from './StatGrid';
 export * from './RichEditorField';
 export * from './RichTextView';
 export * from './BottomSheet';
+export * from './PickerSheet';
 export * from './Stepper';
 export * from './SegmentedTabs';
 export * from './CollapsibleSection';

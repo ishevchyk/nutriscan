@@ -13,6 +13,7 @@ import {backAction, ScreenHeader} from "../components/navigation/ScreenHeader";
 import {router} from "expo-router";
 import {usePickerStore} from "../store/pickerStore";
 import {initStoreDebugLogging} from "../utils/debugStoreLogger";
+import {ThemeOverrideProvider} from "../contexts/ThemeOverrideContext";
 
 SplashScreen.preventAutoHideAsync();
 initStoreDebugLogging();
@@ -37,6 +38,7 @@ export default function RootLayout() {
     return (
         <GestureHandlerRootView style={{flex: 1}}>
         <SafeAreaProvider>
+        <ThemeOverrideProvider>
             <Stack
                 screenOptions={{
                     header: ({options}) => (
@@ -87,6 +89,54 @@ export default function RootLayout() {
                     name="groups"
                     options={{
                         title: 'Groups'
+                    }}
+                />
+                <Stack.Screen
+                    name="hidden-groups"
+                    options={{
+                        header: () => (
+                            <ScreenHeader headerTitle="System groups" rightAction={backAction('Profile')} />
+                        ),
+                    }}
+                />
+                <Stack.Screen
+                    name="edit-profile"
+                    options={{
+                        header: () => (
+                            <ScreenHeader headerTitle="Edit profile" rightAction={backAction('Profile')} />
+                        ),
+                    }}
+                />
+                <Stack.Screen
+                    name="goals"
+                    options={{
+                        header: () => (
+                            <ScreenHeader headerTitle="Goals" rightAction={backAction('Profile')} />
+                        ),
+                    }}
+                />
+                <Stack.Screen
+                    name="timezone"
+                    options={{
+                        header: () => (
+                            <ScreenHeader headerTitle="Timezone" rightAction={backAction('Profile')} />
+                        ),
+                    }}
+                />
+                <Stack.Screen
+                    name="change-password"
+                    options={{
+                        header: () => (
+                            <ScreenHeader headerTitle="Change password" rightAction={backAction('Profile')} />
+                        ),
+                    }}
+                />
+                <Stack.Screen
+                    name="delete-account"
+                    options={{
+                        header: () => (
+                            <ScreenHeader headerTitle="Delete account" rightAction={backAction('Profile')} />
+                        ),
                     }}
                 />
                 <Stack.Screen
@@ -150,15 +200,8 @@ export default function RootLayout() {
                         ),
                     }}
                 />
-                <Stack.Screen
-                    name="goals"
-                    options={{
-                        header: () => (
-                            <ScreenHeader headerTitle="Goals" rightAction={backAction('Tracker')} />
-                        ),
-                    }}
-                />
             </Stack>
+        </ThemeOverrideProvider>
         </SafeAreaProvider>
         </GestureHandlerRootView>
     );

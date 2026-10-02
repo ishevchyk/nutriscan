@@ -20,9 +20,10 @@ interface AuthState {
   setTokens: (accessToken: string, refreshToken: string) => void;
   clearTokens: () => void;
   hydrateFromStorage: () => Promise<boolean>;
+  logout: () => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   accessToken: null,
   refreshToken: null,
   userId: null,
@@ -31,6 +32,22 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ accessToken, refreshToken, userId: parseUserId(accessToken) }),
 
   clearTokens: () => set({ accessToken: null, refreshToken: null, userId: null }),
+
+  // Best-effort server-side revoke, same philosophy as hydrateFromStorage's
+  // failure handling: if the network call fails, still clear local tokens
+  // so the user isn't stuck signed in on this device.
+  logout: async () => {
+    const { refreshToken } = get();
+    if (refreshToken) {
+      try {
+        await authApi.post('/auth/logout', { refresh_token: refreshToken });
+      } catch {
+        // best-effort
+      }
+    }
+    await SecureStore.deleteItemAsync(SECURE_STORE_REFRESH_KEY);
+    set({ accessToken: null, refreshToken: null, userId: null });
+  },
 
   // Exchanges a persisted refresh token for a fresh session on app startup.
   // Returns true if the session was restored, false if the user still needs to log in.

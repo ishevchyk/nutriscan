@@ -6,6 +6,7 @@
     "@10play/tentap-editor": "^1.0.1",
     "@expo-google-fonts/jetbrains-mono": "^0.4.1",
     "@hookform/resolvers": "^5.4.0",
+    "@react-native-community/datetimepicker": "8.4.4",
     "@react-native-vector-icons/material-design-icons": "^13.1.2",
     "axios": "^1.18.0",
     "expo": "54.0.36",

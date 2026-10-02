@@ -15,6 +15,7 @@ type UnderlineFieldProps = {
   valueFontFamily?: 'sans' | 'mono';
   keyboardType?: TextInputProps['keyboardType'];
   autoCapitalize?: TextInputProps['autoCapitalize'];
+  secureTextEntry?: boolean;
   error?: string;
   testID?: string;
 };
@@ -29,6 +30,7 @@ export function UnderlineField({
   valueFontFamily = 'sans',
   keyboardType,
   autoCapitalize,
+  secureTextEntry,
   error,
   testID,
 }: UnderlineFieldProps) {
@@ -49,11 +51,12 @@ export function UnderlineField({
           placeholderTextColor={colors.placeholder}
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
+          secureTextEntry={secureTextEntry}
           testID={testID}
         />
       ) : (
         <Text
-          style={[styles.value, styles.readOnlyValue, { fontFamily }]}
+          style={[styles.value, { fontFamily }]}
           testID={testID}
         >
           {value}
@@ -75,9 +78,6 @@ function createStyles(colors: ThemeColors) {
       paddingBottom: Spacing.sm,
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
-    },
-    readOnlyValue: {
-      color: colors.placeholder,
     },
     error: {
       color: colors.error,
