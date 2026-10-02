@@ -18,6 +18,7 @@ export default function GoalsScreen() {
   const [fat, setFat] = useState<number | null>(null);
   const [carbs, setCarbs] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loaded) {
@@ -37,6 +38,7 @@ export default function GoalsScreen() {
 
   async function handleSave() {
     setSaving(true);
+    setSaveError(null);
     try {
       await updateGoal({
         calories_goal: calories,
@@ -45,6 +47,8 @@ export default function GoalsScreen() {
         carbs_goal: carbs,
       });
       router.back();
+    } catch {
+      setSaveError('Failed to save goals. Try again.');
     } finally {
       setSaving(false);
     }
@@ -55,7 +59,11 @@ export default function GoalsScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      style={{ backgroundColor: colors.pageBackground }}
+      contentContainerStyle={styles.container}
+      keyboardShouldPersistTaps="handled"
+    >
       {!isSet && (
         <>
           <Text style={styles.heading}>Set your daily goals</Text>
@@ -72,8 +80,12 @@ export default function GoalsScreen() {
         <StatCard label="Carbs" unit="g" value={carbs} onChangeValue={setCarbs} />
       </StatGrid>
 
+      <Text style={styles.calculateHint}>A "Calculate for me" option will be available in a future update.</Text>
+
+      {saveError && <Text style={styles.errorText}>{saveError}</Text>}
+
       <Pressable style={[styles.saveButton, saving && styles.saveButtonDisabled]} onPress={handleSave} disabled={saving}>
-        <Text style={styles.saveButtonText}>{saving ? 'Saving…' : 'Save Goals'}</Text>
+        {saving ? <ActivityIndicator color={colors.onPrimary} /> : <Text style={styles.saveButtonText}>Save Goals</Text>}
       </Pressable>
     </ScrollView>
   );
@@ -110,6 +122,26 @@ function createStyles(colors: ThemeColors) {
       color: colors.onPrimary,
       fontSize: Typography.fontSize.base,
       fontWeight: Typography.fontWeight.semibold,
+    },
+    mismatchBox: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: Radii.lg,
+      padding: Spacing.lg,
+      gap: Spacing.xs,
+    },
+    mismatchTitle: { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold, color: colors.text },
+    mismatchBody: { fontSize: Typography.fontSize.sm, color: colors.textSecondary },
+    calculateHint: {
+      fontSize: Typography.fontSize.sm,
+      color: colors.textTertiary,
+      textAlign: 'center',
+    },
+    errorText: {
+      color: colors.error,
+      fontSize: Typography.fontSize.sm,
+      textAlign: 'center',
     },
   });
 }

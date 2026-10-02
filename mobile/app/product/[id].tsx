@@ -64,14 +64,14 @@ export default function ProductDetail() {
 
     if (loaded && !product) {
         return (
-            <ScrollView contentContainerStyle={styles.container}>
+            <ScrollView style={{ backgroundColor: colors.pageBackground }} contentContainerStyle={styles.container}>
                 <Text style={styles.notFound}>Product not found.</Text>
             </ScrollView>
         );
     }
 
     return (
-        <ScrollView contentContainerStyle={styles.container}>
+        <ScrollView style={{ backgroundColor: colors.pageBackground }} contentContainerStyle={styles.container}>
             <ProductFormFields
                 control={control}
                 errors={errors}

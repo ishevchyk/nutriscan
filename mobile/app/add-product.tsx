@@ -68,7 +68,7 @@ export default function AddProduct() {
     }
 
     return (
-        <ScrollView contentContainerStyle={styles.container}>
+        <ScrollView style={{ backgroundColor: colors.pageBackground }} contentContainerStyle={styles.container}>
             <ProductFormFields
                 control={control}
                 errors={errors}

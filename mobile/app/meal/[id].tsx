@@ -200,7 +200,11 @@ export default function MealDetail() {
 
   return (
     <>
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        style={{ backgroundColor: colors.pageBackground }}
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Title row */}
         {isEditing ? (
           <View style={styles.titleRow}>

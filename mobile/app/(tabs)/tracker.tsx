@@ -109,7 +109,11 @@ export default function TrackerScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      style={{ backgroundColor: colors.pageBackground }}
+      contentContainerStyle={styles.container}
+      keyboardShouldPersistTaps="handled"
+    >
       <Pressable style={styles.tapCatcher} onPress={() => Keyboard.dismiss()}>
         <DateNavigator
           dateLabel={formatDateLabel(date)}

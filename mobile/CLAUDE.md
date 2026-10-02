@@ -23,6 +23,9 @@ database schema, API endpoints, and AI integration details.
 - access_token stored in Zustand memory only (never persisted to disk)
 - refresh_token stored in expo-secure-store only
 
+## Known issues
+- **Products/Meals tabs refetch on every mount.** `app/(tabs)/products.tsx` and `app/(tabs)/meals.tsx` call `loadProducts()`/`loadMeals()`/`fetchGroups()` unconditionally on mount (only gated by `userId`, not by the store's own `loaded` flag), and track loading via a local `initializing` state that always starts `true` instead of reading `loaded`. `app/(tabs)/tracker.tsx` and `app/(tabs)/profile.tsx` already use the correct guard (`if (!loaded) load...()`, spinner driven by `loaded` itself) — bringing Products/Meals in line with that pattern removes the redundant backend round-trip and spinner flash on tab revisit. Deliberately left as-is for now; revisit when picked back up.
+
 ## AI scanning flow
 1. User taps Scan tab → camera opens
 2. Photo captured → base64 encoded

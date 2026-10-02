@@ -55,7 +55,11 @@ export default function LogEntryScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      style={{ backgroundColor: colors.pageBackground }}
+      contentContainerStyle={styles.container}
+      keyboardShouldPersistTaps="handled"
+    >
       {step === 'slot' && <MealSlotStep onContinue={handleSlotContinue} />}
       {step === 'source' && <SourceStep onSelect={handleSourceSelect} />}
       {step === 'product' && mealSlot && (

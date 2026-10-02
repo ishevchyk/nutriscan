@@ -74,7 +74,7 @@ export default function ProductsScreen() {
         />
       </View>
 
-      {initializing && <ActivityIndicator size="large" color={colors.primary} />}
+      {/*{initializing && <ActivityIndicator size="large" color={colors.primary} />}*/}
 
       {loaded && filteredProducts.length === 0 && (
         <Text style={styles.placeholder}>
