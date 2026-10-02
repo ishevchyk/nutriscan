@@ -9,17 +9,26 @@ interface GroupState {
   groups: Group[];
   loaded: boolean;
   activeGroupFilter: string | null;
+  hiddenGroupIds: string[];
+  manageableGroups: Group[];
+  hiddenLoaded: boolean;
   fetchGroups: () => Promise<void>;
   createGroup: (name: string) => Promise<Group>;
   renameGroup: (id: string, name: string) => Promise<void>;
   deleteGroup: (id: string) => Promise<void>;
   setActiveGroupFilter: (groupId: string | null) => void;
+  loadHiddenGroupsScreen: () => Promise<void>;
+  hideGroup: (id: string) => Promise<void>;
+  unhideGroup: (id: string) => Promise<void>;
 }
 
 export const useGroupStore = create<GroupState>((set, get) => ({
   groups: [],
   loaded: false,
   activeGroupFilter: null,
+  hiddenGroupIds: [],
+  manageableGroups: [],
+  hiddenLoaded: false,
 
   fetchGroups: async () => {
     const { data } = await api.get<Group[]>('/groups');
@@ -61,4 +70,53 @@ export const useGroupStore = create<GroupState>((set, get) => ({
   },
 
   setActiveGroupFilter: (groupId) => set({ activeGroupFilter: groupId }),
+
+  loadHiddenGroupsScreen: async () => {
+    const [allResp, hiddenResp] = await Promise.all([
+      api.get<Group[]>('/groups', { params: { include_hidden: true } }),
+      api.get<string[]>('/groups/hidden'),
+    ]);
+    set({
+      manageableGroups: allResp.data.filter((g) => g.is_system),
+      hiddenGroupIds: hiddenResp.data,
+      hiddenLoaded: true,
+    });
+  },
+
+  // Optimistic with rollback, same pattern as deleteGroup; also keeps the
+  // main `groups` list (used by filters/pickers elsewhere) in sync so those
+  // screens don't need a refetch.
+  hideGroup: async (id) => {
+    const previousHiddenIds = get().hiddenGroupIds;
+    const previousGroups = get().groups;
+    set({
+      hiddenGroupIds: [...previousHiddenIds, id],
+      groups: previousGroups.filter((g) => g.id !== id),
+    });
+    try {
+      await api.post(`/groups/${id}/hide`);
+    } catch (err) {
+      set({ hiddenGroupIds: previousHiddenIds, groups: previousGroups });
+      throw err;
+    }
+  },
+
+  unhideGroup: async (id) => {
+    const previousHiddenIds = get().hiddenGroupIds;
+    const previousGroups = get().groups;
+    const revealed = get().manageableGroups.find((g) => g.id === id);
+    set({
+      hiddenGroupIds: previousHiddenIds.filter((gid) => gid !== id),
+      groups:
+        revealed && !previousGroups.some((g) => g.id === id)
+          ? [...previousGroups, revealed]
+          : previousGroups,
+    });
+    try {
+      await api.delete(`/groups/${id}/hide`);
+    } catch (err) {
+      set({ hiddenGroupIds: previousHiddenIds, groups: previousGroups });
+      throw err;
+    }
+  },
 }));

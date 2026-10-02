@@ -16,7 +16,7 @@ export const ProductPickerItem = memo(function ProductPickerItem({ item, onSelec
             name={item.name}
             brand={item.brand}
             onPress={() => onSelect(item)}
-            badges={<GroupBadgeRow groups={item.groups} />}
+            // badges={<GroupBadgeRow groups={item.groups} />}
             footer={
                 <ProductMacroFooter
                     calories={item.calories}
