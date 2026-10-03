@@ -72,7 +72,7 @@ export default function AddProduct() {
             <ProductFormFields
                 control={control}
                 errors={errors}
-                groups={isForMeal ? [] : groups}
+                groups={groups}
                 selectedGroupIds={selectedGroupIds}
                 onToggleGroup={toggleGroup}
             />

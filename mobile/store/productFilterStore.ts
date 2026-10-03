@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { create } from 'zustand';
 
 import {
@@ -9,11 +10,13 @@ import {
 } from '../utils/productFilters';
 
 /**
- * Products screen filter + sort state. Lives in a store (not screen state)
- * so it survives switching tabs. Session-only on purpose -- not persisted,
- * a fresh app launch starts unfiltered.
+ * Filter + sort state for a product list. The Products tab uses the global
+ * `useProductFilterStore` below so it survives switching tabs (session-only
+ * on purpose -- not persisted, a fresh app launch starts unfiltered). The
+ * product picker uses `useLocalProductFilters`, so its filters start clean
+ * on every open and never leak into the tab (or back).
  */
-interface ProductFilterState {
+export interface ProductFilterState {
   filters: ProductFilters;
   sort: ProductSort;
   toggleGroup: (id: string) => void;
@@ -33,20 +36,29 @@ interface ProductFilterState {
 const toggle = <T,>(list: T[], value: T) =>
   list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
 
-export const useProductFilterStore = create<ProductFilterState>((set) => ({
-  filters: EMPTY_FILTERS,
-  sort: DEFAULT_SORT,
+const createProductFilterStore = () =>
+  create<ProductFilterState>((set) => ({
+    filters: EMPTY_FILTERS,
+    sort: DEFAULT_SORT,
 
-  toggleGroup: (id) => set((s) => ({ filters: { ...s.filters, groupIds: toggle(s.filters.groupIds, id) } })),
-  toggleBrand: (key) => set((s) => ({ filters: { ...s.filters, brands: toggle(s.filters.brands, key) } })),
-  clearBrands: () => set((s) => ({ filters: { ...s.filters, brands: [] } })),
-  toggleNutrition: (preset) =>
-    set((s) => ({ filters: { ...s.filters, nutrition: toggle(s.filters.nutrition, preset) } })),
-  setMaxCalories: (value) => set((s) => ({ filters: { ...s.filters, maxCalories: value } })),
-  toggleFavoritesOnly: () => set((s) => ({ filters: { ...s.filters, favoritesOnly: !s.filters.favoritesOnly } })),
-  resetFilters: () => set((s) => ({ filters: { ...EMPTY_FILTERS, favoritesOnly: s.filters.favoritesOnly } })),
-  setSort: (sort) => set({ sort }),
-  resetSort: () => set({ sort: DEFAULT_SORT }),
-  dropGroup: (id) =>
-    set((s) => ({ filters: { ...s.filters, groupIds: s.filters.groupIds.filter((g) => g !== id) } })),
-}));
+    toggleGroup: (id) => set((s) => ({ filters: { ...s.filters, groupIds: toggle(s.filters.groupIds, id) } })),
+    toggleBrand: (key) => set((s) => ({ filters: { ...s.filters, brands: toggle(s.filters.brands, key) } })),
+    clearBrands: () => set((s) => ({ filters: { ...s.filters, brands: [] } })),
+    toggleNutrition: (preset) =>
+      set((s) => ({ filters: { ...s.filters, nutrition: toggle(s.filters.nutrition, preset) } })),
+    setMaxCalories: (value) => set((s) => ({ filters: { ...s.filters, maxCalories: value } })),
+    toggleFavoritesOnly: () => set((s) => ({ filters: { ...s.filters, favoritesOnly: !s.filters.favoritesOnly } })),
+    resetFilters: () => set((s) => ({ filters: { ...EMPTY_FILTERS, favoritesOnly: s.filters.favoritesOnly } })),
+    setSort: (sort) => set({ sort }),
+    resetSort: () => set({ sort: DEFAULT_SORT }),
+    dropGroup: (id) =>
+      set((s) => ({ filters: { ...s.filters, groupIds: s.filters.groupIds.filter((g) => g !== id) } })),
+  }));
+
+export const useProductFilterStore = createProductFilterStore();
+
+/** Fresh, component-scoped filter state (one store per mount). */
+export function useLocalProductFilters(): ProductFilterState {
+  const [useStore] = useState(createProductFilterStore);
+  return useStore();
+}

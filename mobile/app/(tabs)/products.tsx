@@ -1,35 +1,25 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 
-import { Radii, Spacing, ThemeColors, Typography } from '../../constants/theme';
+import { Spacing, ThemeColors, Typography } from '../../constants/theme';
 import { useThemeColor } from '../../hooks/useThemeColor';
 import { useAuthStore } from '../../store/authStore';
 import { useProductStore } from '../../store/productStore';
 import { useGroupStore } from '../../store/groupStore';
 import { useProductFilterStore } from '../../store/productFilterStore';
 import { ProductCard } from '../../components/products/ProductCard';
-import { ProductFiltersSheet } from '../../components/products/ProductFiltersSheet';
-import { ProductSortSheet } from '../../components/products/ProductSortSheet';
-import { afterSheetClose } from '../../utils/afterSheetClose';
-import {
-  applyProductFilters,
-  countActiveFilters,
-  effectiveFilters,
-  SORT_OPTIONS,
-  sortProducts,
-} from '../../utils/productFilters';
-
-type OpenSheet = 'filters' | 'sort' | null;
+import { ProductFilterBar } from '../../components/products/ProductFilterBar';
+import { useFilteredProducts } from '../../hooks/useFilteredProducts';
 
 export default function ProductsScreen() {
   const userId = useAuthStore((s) => s.userId);
   const { products, loaded, statsStale, loadProducts } = useProductStore();
   const { groups, loaded: groupsLoaded, fetchGroups } = useGroupStore();
-  const { filters, sort, toggleFavoritesOnly, resetFilters } = useProductFilterStore();
+  const filterState = useProductFilterStore();
+  const { toggleFavoritesOnly, resetFilters } = filterState;
   const [searchQuery, setSearchQuery] = useState('');
-  const [openSheet, setOpenSheet] = useState<OpenSheet>(null);
   const colors = useThemeColor();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
@@ -48,23 +38,13 @@ export default function ProductsScreen() {
     }, [userId, loaded, statsStale]),
   );
 
-  const visibleGroupIds = useMemo(() => new Set(groups.map((g) => g.id)), [groups]);
-  const activeFilters = useMemo(() => effectiveFilters(filters, visibleGroupIds), [filters, visibleGroupIds]);
-  const activeFilterCount = countActiveFilters(activeFilters);
-  const favoriteCount = useMemo(() => products.filter((p) => p.is_favorite).length, [products]);
-
-  const visibleProducts = useMemo(
-    () => sortProducts(applyProductFilters(products, activeFilters, searchQuery), sort),
-    [products, activeFilters, searchQuery, sort],
+  const { activeFilters, activeFilterCount, favoriteCount, visibleProducts } = useFilteredProducts(
+    products,
+    groups,
+    filterState,
+    searchQuery,
   );
-
-  const sortLabel = SORT_OPTIONS.find((o) => o.key === sort)?.short ?? '';
   const isNarrowed = activeFilterCount > 0 || activeFilters.favoritesOnly || searchQuery.trim().length > 0;
-
-  function handleManageGroups() {
-    setOpenSheet(null);
-    afterSheetClose(() => router.push('/groups'));
-  }
 
   function clearEverything() {
     resetFilters();
@@ -82,52 +62,18 @@ export default function ProductsScreen() {
         </Pressable>
       </View>
 
-      <TextInput
-        placeholder="Search library..."
-        placeholderTextColor={colors.placeholder}
-        style={styles.searchInput}
-        value={searchQuery}
-        onChangeText={setSearchQuery}
-        clearButtonMode="while-editing"
+      <ProductFilterBar
+        filterState={filterState}
+        activeFilters={activeFilters}
+        activeFilterCount={activeFilterCount}
+        favoriteCount={favoriteCount}
+        products={products}
+        groups={groups}
+        resultCount={visibleProducts.length}
+        query={searchQuery}
+        onQueryChange={setSearchQuery}
+        searchPlaceholder="Search library..."
       />
-
-      <View style={styles.controlsRow}>
-        <Pressable
-          style={[styles.pill, activeFilterCount > 0 && styles.pillActive]}
-          onPress={() => setOpenSheet('filters')}
-          accessibilityLabel={activeFilterCount > 0 ? `Filters, ${activeFilterCount} active` : 'Filters'}
-        >
-          <Text style={[styles.pillText, activeFilterCount > 0 && styles.pillTextActive]}>
-            Filters{activeFilterCount > 0 ? ` · ${activeFilterCount}` : ''}
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[styles.pill, styles.favPill, activeFilters.favoritesOnly && styles.pillActive]}
-          onPress={toggleFavoritesOnly}
-          accessibilityRole="switch"
-          accessibilityState={{ checked: activeFilters.favoritesOnly }}
-          accessibilityLabel={`Favourites only, ${favoriteCount} favourites`}
-        >
-          <MaterialDesignIcons
-            name={activeFilters.favoritesOnly ? 'heart' : 'heart-outline'}
-            size={14}
-            color={activeFilters.favoritesOnly ? colors.onPrimary : colors.textSecondary}
-          />
-          <Text style={[styles.pillText, activeFilters.favoritesOnly && styles.pillTextActive]}>{favoriteCount}</Text>
-        </Pressable>
-
-        <Pressable style={styles.sortButton} onPress={() => setOpenSheet('sort')} hitSlop={8}>
-          <Text style={styles.metaLabel}>Sort: </Text>
-          <Text style={styles.sortValue} numberOfLines={1}>
-            {sortLabel}
-          </Text>
-          <MaterialDesignIcons name="menu-down" size={14} color={colors.primary} />
-        </Pressable>
-      </View>
-
-      <Text style={styles.metaLabel}>
-        {visibleProducts.length} product{visibleProducts.length === 1 ? '' : 's'}
-      </Text>
 
       {loaded && visibleProducts.length === 0 && (
         <View style={styles.emptyState}>
@@ -151,20 +97,6 @@ export default function ProductsScreen() {
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => <ProductCard item={item} />}
         keyboardShouldPersistTaps="handled"
-      />
-
-      <ProductFiltersSheet
-        visible={openSheet === 'filters'}
-        onClose={() => setOpenSheet(null)}
-        products={products}
-        groups={groups}
-        resultCount={visibleProducts.length}
-        onManageGroups={handleManageGroups}
-      />
-      <ProductSortSheet
-        visible={openSheet === 'sort'}
-        onClose={() => setOpenSheet(null)}
-        resultCount={visibleProducts.length}
       />
     </View>
   );
@@ -199,38 +131,5 @@ function createStyles(colors: ThemeColors) {
       alignItems: 'center',
       gap: 6,
     },
-    searchInput: {
-      height: 40,
-      borderColor: colors.border,
-      borderWidth: 1,
-      borderRadius: 8,
-      paddingHorizontal: 10,
-      backgroundColor: colors.surface,
-      color: colors.text,
-    },
-    controlsRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-    pill: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: Spacing.xs,
-      paddingVertical: Spacing.sm,
-      paddingHorizontal: Spacing.md,
-      borderRadius: Radii.full,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.card,
-    },
-    favPill: { paddingHorizontal: Spacing.md - 2 },
-    pillActive: { backgroundColor: colors.primary, borderColor: colors.primaryPressed },
-    pillText: {
-      fontFamily: Typography.fontFamily.monoMedium,
-      fontSize: Typography.fontSize.xxs,
-      letterSpacing: Typography.letterSpacing.label,
-      textTransform: 'uppercase',
-      color: colors.text,
-    },
-    pillTextActive: { color: colors.onPrimary, fontFamily: Typography.fontFamily.monoBold },
-    sortButton: { marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', flexShrink: 1 },
-    sortValue: { ...monoLabel, color: colors.primary, flexShrink: 1 },
   });
 }
