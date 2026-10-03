@@ -2,11 +2,13 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select, union_all
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_db
 from app.models.group import Group
+from app.models.log_entry import LogEntry
+from app.models.log_entry_meal_ingredient import LogEntryMealIngredient
 from app.models.product import Product
 from app.models.product_group import ProductGroup
 from app.models.product_unit_conversions import ProductUnitConversion
@@ -50,6 +52,54 @@ async def _attach_groups(db: AsyncSession, products: list[Product]) -> None:
         product.groups = by_product.get(product.id, [])
 
 
+async def _attach_log_stats(db: AsyncSession, products: list[Product]) -> None:
+    """Batch-compute `.last_logged_at` / `.log_count` for the Products
+    screen's "Recently logged" / "Most logged" sorts and "Last logged" line.
+
+    A product counts as logged by any log entry that references it, either
+    directly (source_type='product') or through a logged meal's ingredient
+    snapshot (log_entry_meal_ingredients) -- most food reaches the log via
+    meals (README §3.5), so direct entries alone would leave most products
+    looking never-eaten. Counted per distinct log entry, so a meal listing
+    the same product twice still counts once.
+    """
+    if not products:
+        return
+    product_ids = [p.id for p in products]
+    direct = select(
+        LogEntry.id.label("entry_id"),
+        LogEntry.product_id.label("product_id"),
+        LogEntry.logged_at.label("logged_at"),
+    ).where(LogEntry.source_type == "product", LogEntry.product_id.in_(product_ids))
+    via_meal = (
+        select(
+            LogEntry.id.label("entry_id"),
+            LogEntryMealIngredient.product_id.label("product_id"),
+            LogEntry.logged_at.label("logged_at"),
+        )
+        .join(LogEntry, LogEntry.id == LogEntryMealIngredient.log_entry_id)
+        .where(LogEntryMealIngredient.product_id.in_(product_ids))
+    )
+    refs = union_all(direct, via_meal).subquery()
+    result = await db.execute(
+        select(
+            refs.c.product_id,
+            func.max(refs.c.logged_at),
+            func.count(func.distinct(refs.c.entry_id)),
+        ).group_by(refs.c.product_id)
+    )
+    stats = {pid: (last, count) for pid, last, count in result.all()}
+    for product in products:
+        last, count = stats.get(product.id, (None, 0))
+        product.last_logged_at = last
+        product.log_count = count
+
+
+async def _hydrate(db: AsyncSession, products: list[Product]) -> None:
+    await _attach_groups(db, products)
+    await _attach_log_stats(db, products)
+
+
 @router.get("", response_model=list[ProductOut])
 async def list_products(
     group_id: UUID | None = None,
@@ -63,7 +113,7 @@ async def list_products(
         )
     result = await db.execute(query)
     products = result.scalars().all()
-    await _attach_groups(db, products)
+    await _hydrate(db, products)
     return products
 
 
@@ -77,7 +127,7 @@ async def create_product(
     db.add(product)
     await db.commit()
     await db.refresh(product)
-    await _attach_groups(db, [product])
+    await _hydrate(db, [product])
     return product
 
 
@@ -90,7 +140,7 @@ async def list_deleted_products(
         select(Product).where(Product.user_id == current_user.id, Product.deleted_at.is_not(None))
     )
     products = result.scalars().all()
-    await _attach_groups(db, products)
+    await _hydrate(db, products)
     return products
 
 
@@ -108,7 +158,7 @@ async def get_product(
     product = result.scalar_one_or_none()
     if not product:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
-    await _attach_groups(db, [product])
+    await _hydrate(db, [product])
     return product
 
 
@@ -131,7 +181,7 @@ async def update_product(
         setattr(product, field, value)
     await db.commit()
     await db.refresh(product)
-    await _attach_groups(db, [product])
+    await _hydrate(db, [product])
     return product
 
 
@@ -170,7 +220,7 @@ async def restore_product(
     product.deleted_at = None
     await db.commit()
     await db.refresh(product)
-    await _attach_groups(db, [product])
+    await _hydrate(db, [product])
     return product
 
 

@@ -44,11 +44,21 @@ class ProductUpdate(BaseModel):
     serving_unit: str | None = None
     notes: str | None = None
     source: str | None = None
+    # Not nullable in the DB -- an explicit null is rejected rather than
+    # silently ignored (see the validator below).
+    is_favorite: bool | None = None
 
     @field_validator("notes")
     @classmethod
     def sanitize_notes(cls, v: str | None) -> str | None:
         return sanitize_rich_text(v)
+
+    @field_validator("is_favorite")
+    @classmethod
+    def is_favorite_not_null(cls, v: bool | None) -> bool | None:
+        if v is None:
+            raise ValueError("is_favorite cannot be null")
+        return v
 
 
 class ProductOut(BaseModel):
@@ -71,6 +81,13 @@ class ProductOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     deleted_at: datetime | None
+    is_favorite: bool = False
     groups: list[GroupOut] = []
+    # Derived from the user's log, not stored on the row -- see
+    # app/routers/products.py's _attach_log_stats. Counts log entries that
+    # reference the product directly (source_type='product') or as an
+    # ingredient of a logged meal.
+    last_logged_at: datetime | None = None
+    log_count: int = 0
 
     model_config = {"from_attributes": True}

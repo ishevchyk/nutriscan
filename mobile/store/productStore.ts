@@ -22,7 +22,12 @@ export interface Product {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+  is_favorite: boolean;
   groups: Group[];
+  // Derived server-side from the log (direct product entries + logged meals
+  // that include it) -- read-only, see backend products.py _attach_log_stats.
+  last_logged_at: string | null;
+  log_count: number;
 }
 
 // Must match backend/app/jobs.py RETENTION_DAYS
@@ -32,16 +37,22 @@ export type NewProduct = Pick<Product, 'name'> &
   Partial<
     Omit<
       Product,
-      'id' | 'user_id' | 'name' | 'created_at' | 'updated_at' | 'groups'
+      'id' | 'user_id' | 'name' | 'created_at' | 'updated_at' | 'groups' | 'last_logged_at' | 'log_count'
     >
   >;
 
 interface ProductState {
   products: Product[];
   loaded: boolean;
+  // Set by logStore whenever a log entry is added/edited/removed -- the
+  // products' last_logged_at/log_count are then out of date, and the Products
+  // tab refetches the next time it gains focus.
+  statsStale: boolean;
   deletedProducts: Product[];
   deletedLoaded: boolean;
-  loadProducts: (groupId?: string) => Promise<void>;
+  loadProducts: () => Promise<void>;
+  markStatsStale: () => void;
+  toggleFavorite: (id: string) => Promise<void>;
   addProduct: (p: NewProduct) => Promise<Product>;
   updateProduct: (id: string, patch: Partial<NewProduct>) => Promise<void>;
   removeProduct: (id: string) => Promise<void>;
@@ -54,14 +65,34 @@ interface ProductState {
 export const useProductStore = create<ProductState>((set, get) => ({
   products: [],
   loaded: false,
+  statsStale: false,
   deletedProducts: [],
   deletedLoaded: false,
 
-  loadProducts: async (groupId) => {
-    const { data } = await api.get<Product[]>('/products', {
-      params: groupId ? { group_id: groupId } : undefined,
-    });
-    set({ products: data, loaded: true });
+  // Always loads the full library: group/brand/nutrition filtering happens
+  // client-side on the Products screen (utils/productFilters.ts), so the
+  // store's list stays complete for the tracker and pickers that share it.
+  loadProducts: async () => {
+    const { data } = await api.get<Product[]>('/products');
+    set({ products: data, loaded: true, statsStale: false });
+  },
+
+  markStatsStale: () => set({ statsStale: true }),
+
+  // Optimistic with rollback -- a heart tap should feel instant.
+  toggleFavorite: async (id) => {
+    const current = get().products.find((p) => p.id === id);
+    if (!current) return;
+    const next = !current.is_favorite;
+    const setFavorite = (value: boolean) =>
+      set({ products: get().products.map((p) => (p.id === id ? { ...p, is_favorite: value } : p)) });
+    setFavorite(next);
+    try {
+      await api.patch<Product>(`/products/${id}`, { is_favorite: next });
+    } catch (err) {
+      setFavorite(current.is_favorite);
+      throw err;
+    }
   },
 
   addProduct: async (fields) => {

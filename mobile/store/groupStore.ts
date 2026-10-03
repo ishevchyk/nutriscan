@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { api } from '../lib/api';
 import { useProductStore } from './productStore';
+import { useProductFilterStore } from './productFilterStore';
 import { Group } from './types';
 
 export type { Group };
@@ -8,7 +9,6 @@ export type { Group };
 interface GroupState {
   groups: Group[];
   loaded: boolean;
-  activeGroupFilter: string | null;
   hiddenGroupIds: string[];
   manageableGroups: Group[];
   hiddenLoaded: boolean;
@@ -16,7 +16,6 @@ interface GroupState {
   createGroup: (name: string) => Promise<Group>;
   renameGroup: (id: string, name: string) => Promise<void>;
   deleteGroup: (id: string) => Promise<void>;
-  setActiveGroupFilter: (groupId: string | null) => void;
   loadHiddenGroupsScreen: () => Promise<void>;
   hideGroup: (id: string) => Promise<void>;
   unhideGroup: (id: string) => Promise<void>;
@@ -25,7 +24,6 @@ interface GroupState {
 export const useGroupStore = create<GroupState>((set, get) => ({
   groups: [],
   loaded: false,
-  activeGroupFilter: null,
   hiddenGroupIds: [],
   manageableGroups: [],
   hiddenLoaded: false,
@@ -59,17 +57,12 @@ export const useGroupStore = create<GroupState>((set, get) => ({
         products: products.map((p) => ({ ...p, groups: p.groups.filter((g) => g.id !== id) })),
       });
 
-      if (get().activeGroupFilter === id) {
-        set({ activeGroupFilter: null });
-        await useProductStore.getState().loadProducts();
-      }
+      useProductFilterStore.getState().dropGroup(id);
     } catch (err) {
       set({ groups: previousGroups });
       throw err;
     }
   },
-
-  setActiveGroupFilter: (groupId) => set({ activeGroupFilter: groupId }),
 
   loadHiddenGroupsScreen: async () => {
     const [allResp, hiddenResp] = await Promise.all([
