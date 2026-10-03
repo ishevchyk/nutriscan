@@ -6,7 +6,7 @@ import { Radii, Spacing, ThemeColors, Typography } from '../../constants/theme';
 import { useThemeColor } from '../../hooks/useThemeColor';
 import { Product } from '../../store/productStore';
 import { Group } from '../../store/types';
-import { useProductFilterStore } from '../../store/productFilterStore';
+import { ProductFilterState } from '../../store/productFilterStore';
 import {
   caloriesSliderMax,
   countActiveFilters,
@@ -19,6 +19,7 @@ import { ProductSheetShell } from './ProductSheetShell';
 
 type ProductFiltersSheetProps = {
   visible: boolean;
+  filterState: ProductFilterState;
   onClose: () => void;
   /** The whole library -- brand options and the kcal range come from it, not from the filtered list. */
   products: Product[];
@@ -32,6 +33,7 @@ const CALORIE_STEP = 10;
 
 export function ProductFiltersSheet({
   visible,
+  filterState,
   onClose,
   products,
   groups,
@@ -48,7 +50,7 @@ export function ProductFiltersSheet({
     toggleNutrition,
     setMaxCalories,
     resetFilters,
-  } = useProductFilterStore();
+  } = filterState;
   const [brandQuery, setBrandQuery] = useState('');
 
   const brandOptions = useMemo(() => getBrandOptions(products), [products]);

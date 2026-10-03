@@ -28,6 +28,7 @@ database schema, API endpoints, and AI integration details.
 
 ## Products screen
 - Filters/sort/favourites-only state lives in `store/productFilterStore.ts` (session-only, not persisted); pure logic in `utils/productFilters.ts`. Everything filters client-side — `loadProducts()` always fetches the full library, never `?group_id=`, because the tracker and pickers read the same store list.
+- The product picker (`app/product-picker.tsx`) reuses the same controls via `components/products/ProductFilterBar.tsx` + `hooks/useFilteredProducts.ts`, but with its own per-mount state (`useLocalProductFilters`) so its filters start clean and never leak into the tab. The Filters/Sort sheets are controlled (`filterState` prop).
 - `last_logged_at`/`log_count` come from the backend; `logStore` calls `markStatsStale()` after adding/removing an entry and the Products tab refetches on next focus.
 
 ## AI scanning flow

@@ -4,20 +4,21 @@ import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-
 
 import { Radii, Spacing, ThemeColors, Typography } from '../../constants/theme';
 import { useThemeColor } from '../../hooks/useThemeColor';
-import { useProductFilterStore } from '../../store/productFilterStore';
+import { ProductFilterState } from '../../store/productFilterStore';
 import { DEFAULT_SORT, SORT_OPTIONS } from '../../utils/productFilters';
 import { ProductSheetShell } from './ProductSheetShell';
 
 type ProductSortSheetProps = {
   visible: boolean;
+  filterState: ProductFilterState;
   onClose: () => void;
   resultCount: number;
 };
 
-export function ProductSortSheet({ visible, onClose, resultCount }: ProductSortSheetProps) {
+export function ProductSortSheet({ visible, filterState, onClose, resultCount }: ProductSortSheetProps) {
   const colors = useThemeColor();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const { sort, setSort, resetSort } = useProductFilterStore();
+  const { sort, setSort, resetSort } = filterState;
 
   return (
     <ProductSheetShell
