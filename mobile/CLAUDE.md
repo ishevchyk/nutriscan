@@ -24,7 +24,11 @@ database schema, API endpoints, and AI integration details.
 - refresh_token stored in expo-secure-store only
 
 ## Known issues
-- **Products/Meals tabs refetch on every mount.** `app/(tabs)/products.tsx` and `app/(tabs)/meals.tsx` call `loadProducts()`/`loadMeals()`/`fetchGroups()` unconditionally on mount (only gated by `userId`, not by the store's own `loaded` flag), and track loading via a local `initializing` state that always starts `true` instead of reading `loaded`. `app/(tabs)/tracker.tsx` and `app/(tabs)/profile.tsx` already use the correct guard (`if (!loaded) load...()`, spinner driven by `loaded` itself) — bringing Products/Meals in line with that pattern removes the redundant backend round-trip and spinner flash on tab revisit. Deliberately left as-is for now; revisit when picked back up.
+- **Meals tab refetches on every mount.** `app/(tabs)/meals.tsx` calls `loadMeals()`/`fetchGroups()` unconditionally on mount and tracks loading via a local `initializing` state instead of the store's `loaded` flag. `app/(tabs)/products.tsx` was moved to the correct guard (`if (!loaded) load...()`) along with tracker/profile; bring Meals in line the same way when picked back up.
+
+## Products screen
+- Filters/sort/favourites-only state lives in `store/productFilterStore.ts` (session-only, not persisted); pure logic in `utils/productFilters.ts`. Everything filters client-side — `loadProducts()` always fetches the full library, never `?group_id=`, because the tracker and pickers read the same store list.
+- `last_logged_at`/`log_count` come from the backend; `logStore` calls `markStatsStale()` after adding/removing an entry and the Products tab refetches on next focus.
 
 ## AI scanning flow
 1. User taps Scan tab → camera opens
@@ -34,11 +38,12 @@ database schema, API endpoints, and AI integration details.
 5. User can open AI chat to refine fields
 6. User confirms → product saved via the API
 
-## Log & Goals (Phase 5, planned)
-- **Goals screen** — simple form to view/edit the single active goal set (calories, protein, fat, carbs); no goal calculator yet, values are entered manually
-- **Log screen** — daily view grouped by meal slot (breakfast/lunch/dinner/snack), with a summary vs. active goals per macro
-- **Add-entry flow**, three source paths:
-  - Product — pick from library, enter grams consumed
-  - Meal — pick a meal + named portion (or custom grams); shows the meal's ingredients with editable per-ingredient grams and live macro recalculation before save. This only overrides that one log entry, not the meal itself.
-  - Manual — type calories/protein/fat/carbs directly, no product needed
-- Meals (Phase 3) are now implemented (`useMealStore`, `app/(tabs)/meals.tsx`, `app/meal/[id].tsx`, `app/add-meal.tsx`), so the meal-logging path is unblocked. Product and manual entry don't have this dependency either way.
+## Log & Goals (Phase 4 — Tracking & Goals, shipped)
+- **Goals screen** (`app/goals.tsx`) — simple form to view/edit the single active goal set (calories, protein, fat, carbs); no goal calculator yet, values are entered manually
+- **Log screen** (`app/(tabs)/tracker.tsx`) — daily view grouped by meal slot (breakfast/lunch/dinner/snack), with a summary vs. active goals per macro
+- **Add-entry flow** (`app/log-entry.tsx`), three source paths:
+  - Product (`components/tracker/ProductSourceStep.tsx`) — pick from library, enter grams consumed
+  - Meal (`components/tracker/MealSourceStep.tsx`) — pick a meal + named portion (or custom grams); shows the meal's ingredients with editable per-ingredient grams and live macro recalculation before save. This only overrides that one log entry, not the meal itself.
+  - Manual (`components/tracker/ManualSourceStep.tsx`) — type calories/protein/fat/carbs directly, no product needed
+- Meals (Phase 3) are implemented (`useMealStore`, `app/(tabs)/meals.tsx`, `app/meal/[id].tsx`, `app/add-meal.tsx`), so the meal-logging path above is unblocked.
+- See `README.md` §10 Phase 4 for the full checklist (all shipped) and Phase 5 for what's still outstanding on Profile/Settings/Admin, which this doc doesn't duplicate.

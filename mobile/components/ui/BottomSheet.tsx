@@ -21,10 +21,24 @@ type BottomSheetProps = {
   subtitle?: string;
   headerRight?: ReactNode;
   scrollable?: boolean;
+  /** Pinned below the (scrollable) content, e.g. a primary "Show results" button. */
+  footer?: ReactNode;
+  /** Opens the sheet at its max height even when the content is short. */
+  fullHeight?: boolean;
   children: ReactNode;
 };
 
-export function BottomSheet({ visible, onClose, title, subtitle, headerRight, scrollable, children }: BottomSheetProps) {
+export function BottomSheet({
+  visible,
+  onClose,
+  title,
+  subtitle,
+  headerRight,
+  scrollable,
+  footer,
+  fullHeight,
+  children,
+}: BottomSheetProps) {
   const colors = useThemeColor();
   const insets = useSafeAreaInsets();
   // Modal content renders full-screen behind the home indicator, so the
@@ -59,21 +73,25 @@ export function BottomSheet({ visible, onClose, title, subtitle, headerRight, sc
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <Pressable style={styles.backdrop} onPress={onClose} />
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.avoider}>
-          <View style={styles.sheet}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={[styles.avoider, fullHeight && styles.avoiderFull]}
+        >
+          <View style={[styles.sheet, fullHeight && styles.sheetFull, footer != null && styles.sheetWithFooter]}>
             <View style={styles.handle} />
             {header}
             {scrollable ? (
               <ScrollView
                 keyboardShouldPersistTaps="handled"
-                contentContainerStyle={styles.scrollContent}
+                contentContainerStyle={footer != null ? styles.scrollContentWithFooter : styles.scrollContent}
                 showsVerticalScrollIndicator={false}
               >
                 {children}
               </ScrollView>
             ) : (
-              <View style={styles.content}>{children}</View>
+              <View style={[styles.content, fullHeight && styles.contentFull]}>{children}</View>
             )}
+            {footer != null ? <View style={styles.footer}>{footer}</View> : null}
           </View>
         </KeyboardAvoidingView>
       </View>
@@ -94,6 +112,7 @@ function createStyles(colors: ThemeColors, bottomInset: number) {
     avoider: {
       maxHeight: '88%',
     },
+    avoiderFull: { height: '88%' },
     sheet: {
       flexShrink: 1,
       backgroundColor: colors.background,
@@ -103,6 +122,9 @@ function createStyles(colors: ThemeColors, bottomInset: number) {
       paddingBottom: bottomInset + Spacing.lg,
       maxHeight: '100%',
     },
+    sheetFull: { flex: 1 },
+    // The footer owns the bottom inset when there is one.
+    sheetWithFooter: { paddingBottom: 0 },
     handle: {
       alignSelf: 'center',
       width: 44,
@@ -141,6 +163,16 @@ function createStyles(colors: ThemeColors, bottomInset: number) {
       paddingTop: Spacing.xs,
     },
     scrollContent: { paddingBottom: bottomInset + Spacing.md },
+    scrollContentWithFooter: { paddingBottom: Spacing.lg },
     content: {},
+    contentFull: { flex: 1 },
+    footer: {
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      marginHorizontal: -Spacing.xl,
+      paddingHorizontal: Spacing.xl,
+      paddingTop: Spacing.md,
+      paddingBottom: bottomInset,
+    },
   });
 }

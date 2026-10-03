@@ -62,18 +62,20 @@ NutriScan is a personal nutrition tracking app that lets users build a library o
 ### 3.1 Product Library
 - Store commonly bought products with full nutritional profiles
 - Fields: name, brand, barcode (optional), calories, protein, fat, carbohydrates, fiber, sugar, salt, and custom micronutrients
-- Searchable and filterable
+- Searchable and filterable — the Products screen has a **Filters** sheet (groups, match-any; brands with per-brand counts; per-100g nutrition presets: high protein ≥ 10 g, low calorie ≤ 100 kcal, low carb ≤ 10 g, low fat ≤ 3 g; max-calories slider) and a **Sort** sheet (recently logged — default, most logged, name A–Z, calories low → high, protein high → low). Filtering and sorting run client-side over the already-loaded library
+- **Favourites** — heart toggle on each product card; a heart pill on the Products screen shows the favourite count and toggles favourites-only
+- "Last logged" / log count per product, derived from the log (direct product entries plus logged meals that include the product)
 - Fully editable at any time
 - Synced to user account, fetched live from the server
 
 ### 3.2 Product Groups
 - Every product can belong to one or more groups (many-to-many)
 - Two kinds of groups:
-  - **System groups** - a small built-in set shipped with the app (Dairy, Fruits, Breakfast, Snacks, etc.)
-  - **Custom groups** - user-created and named (e.g. "Meal prep staples", "Kid snacks")
+    - **System groups** - a small built-in set shipped with the app (Dairy, Fruits, Breakfast, Snacks, etc.)
+    - **Custom groups** - user-created and named (e.g. "Meal prep staples", "Kid snacks")
 - The Product Library view can show:
-  - A flat "All Products" list with each product's group(s) shown as badges
-  - A per-group filtered view
+    - A flat "All Products" list
+    - A filtered view by one or more groups (match any), chosen in the Products screen's Filters sheet
 - Users can create, rename, and delete their own custom groups at any time (system groups cannot be deleted, only unassigned)
 - The AI Photo Scanner can suggest a system group as part of its draft output, which the user can accept or change before saving
 
@@ -88,10 +90,10 @@ NutriScan is a personal nutrition tracking app that lets users build a library o
 - Available after scanning or on any existing product
 - Multi-turn Claude chat scoped to a single product
 - Example interactions:
-  - "This is the low-fat version, update fat to 2g"
-  - "Find the correct fiber value for Alpro Oat Original"
-  - "The protein looks wrong — it should be per 100g not per serving"
-  - "Move this to my Snacks group"
+    - "This is the low-fat version, update fat to 2g"
+    - "Find the correct fiber value for Alpro Oat Original"
+    - "The protein looks wrong — it should be per 100g not per serving"
+    - "Move this to my Snacks group"
 - Claude proposes field changes (including group membership); user confirms before they are written to the database
 - Chat history is ephemeral (per session, not persisted)
 
@@ -103,12 +105,12 @@ NutriScan is a personal nutrition tracking app that lets users build a library o
 - Editing an ingredient's name/brand/macros directly is always available, independent of link state, and never changes or clears the product link
 - Ingredient quantity can be entered in grams directly, or in a household unit (tbsp, tsp, cup, piece, etc.) — household units convert to grams via a per-product conversion factor, since the same unit weighs differently per ingredient (a tbsp of sugar isn't a tbsp of oil). If a product has no saved conversion factor for the chosen unit yet, the user is prompted to enter one once; it's then reused everywhere that product is used with that unit.
 - Nutrition is auto-calculated in three views:
-  - **Per whole meal** - total macros for the entire meal as written
-  - **Per 100g** - total macros ÷ total meal grams × 100. A meal can optionally record `cooked_weight_grams` (the dish's weight after cooking, since water evaporation/absorption means it's rarely the same as the raw ingredient total); when set, **Per 100g** normalizes against that cooked weight instead, and **Per custom portion** below inherits the fix since it derives from Per 100g. **Per whole meal** is unaffected either way — cooking doesn't change total calories/macros, only water content.
-  - `cooked_weight_grams` is a measured value, not a derived one (how much water is lost/absorbed during cooking isn't a fixed ratio of raw ingredient weight) — editing an ingredient's grams never adjusts it automatically anywhere. The two mobile flows that touch it treat it differently on purpose:
-    - **Meal edit** (`mobile/app/meal/[id].tsx`, `noticeCookedWeightMayBeStale`) changes the saved meal itself, possibly for a long time — an ingredient edit here only shows a dismissible notice that the recorded cooked weight may now be stale, with no suggested number and no auto-fill. The user decides whether/when to re-weigh.
-    - **Tracker log entry** (`mobile/components/tracker/MealSourceStep.tsx`, `handleIngredientBlur`) only affects that one log entry, never the saved meal — an ingredient override here can offer a proportional *estimate* for this entry's logged amount (`quantity_grams`) as a one-tap accept/dismiss, since a wrong guess there is scoped to a single entry, not a standing recipe value.
-  - **Per custom portion** - any number of named portions per meal (e.g. "1 slice", "1 bowl"), each just a gram amount; one portion can be marked default
+    - **Per whole meal** - total macros for the entire meal as written
+    - **Per 100g** - total macros ÷ total meal grams × 100. A meal can optionally record `cooked_weight_grams` (the dish's weight after cooking, since water evaporation/absorption means it's rarely the same as the raw ingredient total); when set, **Per 100g** normalizes against that cooked weight instead, and **Per custom portion** below inherits the fix since it derives from Per 100g. **Per whole meal** is unaffected either way — cooking doesn't change total calories/macros, only water content.
+    - `cooked_weight_grams` is a measured value, not a derived one (how much water is lost/absorbed during cooking isn't a fixed ratio of raw ingredient weight) — editing an ingredient's grams never adjusts it automatically anywhere. The two mobile flows that touch it treat it differently on purpose:
+        - **Meal edit** (`mobile/app/meal/[id].tsx`, `noticeCookedWeightMayBeStale`) changes the saved meal itself, possibly for a long time — an ingredient edit here only shows a dismissible notice that the recorded cooked weight may now be stale, with no suggested number and no auto-fill. The user decides whether/when to re-weigh.
+        - **Tracker log entry** (`mobile/components/tracker/MealSourceStep.tsx`, `handleIngredientBlur`) only affects that one log entry, never the saved meal — an ingredient override here can offer a proportional *estimate* for this entry's logged amount (`quantity_grams`) as a one-tap accept/dismiss, since a wrong guess there is scoped to a single entry, not a standing recipe value.
+    - **Per custom portion** - any number of named portions per meal (e.g. "1 slice", "1 bowl"), each just a gram amount; one portion can be marked default
 - Users can create, rename, and delete portions on any meal at any time
 - Create, edit, browse, and delete meals
 - Each meal has: name, description, ingredients (product + grams), one or more named portions, photo (optional)
@@ -116,41 +118,41 @@ NutriScan is a personal nutrition tracking app that lets users build a library o
 ### 3.6 Calorie & Macro Tracker
 - A dedicated **Log** page for tracking daily intake against personal goals
 - Three ways to log an entry:
-  - **From the Product Library** - pick a product, enter grams consumed
-  - **From Meals** - pick a meal and either a named portion or a custom gram amount; the meal's ingredient list is shown with editable grams per ingredient (e.g. "used 50g cheese instead of the meal's 70g"), and macros recompute live before saving. This only overrides that one logged entry — the meal itself is untouched.
-  - **Manual entry** - type in calories/protein/fat/carbs directly, no product needed (e.g. for restaurant meals)
+    - **From the Product Library** - pick a product, enter grams consumed
+    - **From Meals** - pick a meal and either a named portion or a custom gram amount; the meal's ingredient list is shown with editable grams per ingredient (e.g. "used 50g cheese instead of the meal's 70g"), and macros recompute live before saving. This only overrides that one logged entry — the meal itself is untouched.
+    - **Manual entry** - type in calories/protein/fat/carbs directly, no product needed (e.g. for restaurant meals)
 - Entries are grouped by meal slot (breakfast, lunch, dinner, snack) and by day
 - Daily summary shows totals vs. the user's active goal, per macro
 - **Two entry points into logging, same underlying flow:**
-  - **Per-meal-slot buttons** ("+ Add to Breakfast/Lunch/Dinner/Snack") - `meal_slot` is pre-filled by which button was tapped; user goes straight to source selection (Product / Meal / Manual)
-  - **Global "+ Log" button** (top of page, not slot-specific) - opens a modal that first asks the user to pick a meal slot (Breakfast / Lunch / Dinner / Snack), then continues into the same source-selection step as above
-  - Both paths converge on the same three source options and the same `POST /log` call — the only difference is whether `meal_slot` is chosen implicitly (per-slot button) or explicitly in a first modal step (global button)
+    - **Per-meal-slot buttons** ("+ Add to Breakfast/Lunch/Dinner/Snack") - `meal_slot` is pre-filled by which button was tapped; user goes straight to source selection (Product / Meal / Manual)
+    - **Global "+ Log" button** (top of page, not slot-specific) - opens a modal that first asks the user to pick a meal slot (Breakfast / Lunch / Dinner / Snack), then continues into the same source-selection step as above
+    - Both paths converge on the same three source options and the same `POST /log` call — the only difference is whether `meal_slot` is chosen implicitly (per-slot button) or explicitly in a first modal step (global button)
 - **Goals**: one active set per user (calories, protein, fat, carbs), entered manually and editable any time. No goal calculator yet — planned for later (see Open Questions). Goals are edited in Profile → Daily goals (§3.7); the daily summary's "Edit goals" link deep-links there.
 
 ### 3.7 Profile
 - A dedicated **Profile** tab — everything about the user and how the app behaves for them, on one scrollable screen. Sections, top to bottom:
-  - **Header card** - avatar (optional, initials fallback), display name, email. Tapping it opens Edit profile. For users who sign up with Google, display name and avatar are pre-filled from the Google account on first sign-in (editable afterwards); Apple provides the name only, and only on the very first sign-in.
-  - **Body stats** - date of birth, sex, height, current weight, activity level. All optional; shown as a compact summary, and the empty state invites rather than nags. Will feed the goal calculator once it exists (Open Questions #6).
-  - **Daily goals** - calories, protein, fat, carbs: the same single active goal set as §3.6. Shows the calories implied by the macros (4/9/4 kcal per gram) as a non-blocking hint — values that don't add up are allowed. This is the deep-link target of the Log page's "Edit goals".
-  - **Preferences** - units (metric/imperial, display-only), timezone (IANA picker with a "Use device timezone" shortcut; defines where each day starts and ends in the tracker), notifications toggle (stored preference only — no delivery yet, and the UI says so).
-  - **Product groups** - show/hide toggle per system group (per-user, reversible, nothing deleted). Custom group management stays in the Product Library; this section only links to it.
-  - **Account** - sign-in methods, password, log out, delete account.
-    - **Sign-in methods** - shows which of password / Google / Apple are active; connect or disconnect Google and Apple. The last remaining method can't be removed.
-    - **Password** - "Change password" for users who have one; "Set a password" for social-only users (adds password as an extra sign-in method).
-    - **Delete account** - destructive, two-step confirmation by typing "DELETE" (works for every user, including those with no password).
-  - **Admin** *(admins only)* - see §3.8.
-  - Footer: app version, privacy policy, support.
+    - **Header card** - avatar (optional, initials fallback), display name, email. Tapping it opens Edit profile. For users who sign up with Google, display name and avatar are pre-filled from the Google account on first sign-in (editable afterwards); Apple provides the name only, and only on the very first sign-in.
+    - **Body stats** - date of birth, sex, height, current weight, activity level. All optional; shown as a compact summary, and the empty state invites rather than nags. Will feed the goal calculator once it exists (Open Questions #6).
+    - **Daily goals** - calories, protein, fat, carbs: the same single active goal set as §3.6. Shows the calories implied by the macros (4/9/4 kcal per gram) as a non-blocking hint — values that don't add up are allowed. This is the deep-link target of the Log page's "Edit goals".
+    - **Preferences** - units (metric/imperial, display-only), timezone (IANA picker with a "Use device timezone" shortcut; defines where each day starts and ends in the tracker), notifications toggle (stored preference only — no delivery yet, and the UI says so).
+    - **Product groups** - show/hide toggle per system group (per-user, reversible, nothing deleted). Custom group management stays in the Product Library; this section only links to it.
+    - **Account** - sign-in methods, password, log out, delete account.
+        - **Sign-in methods** - shows which of password / Google / Apple are active; connect or disconnect Google and Apple. The last remaining method can't be removed.
+        - **Password** - "Change password" for users who have one; "Set a password" for social-only users (adds password as an extra sign-in method).
+        - **Delete account** - destructive, two-step confirmation by typing "DELETE" (works for every user, including those with no password).
+    - **Admin** *(admins only)* - see §3.8.
+    - Footer: app version, privacy policy, support.
 
 ### 3.8 Admin Tools
 - An **Admin** section appears on the Profile screen only when `users.role = 'admin'`. Regular users never see it — not even as a disabled row.
 - Proposed actions (final scope pending, see Open Questions #11):
-  - **Manage system groups** - create and rename the built-in groups every user sees (today that's only possible via seed data). Deleting a system group is deliberately left out: it would silently strip group membership from every user's products.
-  - **User management** - searchable user list (email, sign-up date, sign-in methods, role, status); disable / re-enable an account (blocks every sign-in method and token refresh, data untouched); promote / demote admins.
-  - **App stats** - read-only counts: total users, recent sign-ups, products, meals, log entries. AI scan/chat usage can be added once Phase 7 ships.
+    - **Manage system groups** - create and rename the built-in groups every user sees (today that's only possible via seed data). Deleting a system group is deliberately left out: it would silently strip group membership from every user's products.
+    - **User management** - searchable user list (email, sign-up date, sign-in methods, role, status); disable / re-enable an account (blocks every sign-in method and token refresh, data untouched); promote / demote admins.
+    - **App stats** - read-only counts: total users, recent sign-ups, products, meals, log entries. AI scan/chat usage can be added once Phase 7 ships.
 - Guardrails:
-  - An admin can't disable or demote themselves, and the last remaining admin can't be demoted.
-  - Admin tools cover app-wide config and account status only — they never read or edit another user's products, meals, goals, or log (see Open Questions #12).
-  - The first admin is created out of band via a CLI command, never through an endpoint.
+    - An admin can't disable or demote themselves, and the last remaining admin can't be demoted.
+    - Admin tools cover app-wide config and account status only — they never read or edit another user's products, meals, goals, or log (see Open Questions #12).
+    - The first admin is created out of band via a CLI command, never through an endpoint.
 
 ---
 
@@ -285,10 +287,12 @@ sugar         NUMERIC        -- per 100g
 salt          NUMERIC        -- per 100g
 notes         TEXT
 source        TEXT           -- 'manual' | 'ai_scan' | 'ai_chat'
+is_favorite   BOOLEAN NOT NULL DEFAULT false
 created_at    TIMESTAMPTZ DEFAULT now()
 updated_at    TIMESTAMPTZ DEFAULT now()
 deleted_at    TIMESTAMPTZ    -- soft delete, powers Recently Deleted
 ```
+Product responses also carry two derived, read-only fields computed from the log (not stored): `last_logged_at` and `log_count` — every log entry that references the product directly (`source_type = 'product'`) or through `log_entry_meal_ingredients`, counted once per entry.
 
 ### groups
 ```sql
@@ -478,10 +482,10 @@ POST   /auth/set-password               Add a password to a social-only account 
 
 ### Products
 ```
-GET    /products             List user's products (optionally filter by ?group_id=)
+GET    /products             List user's products (optionally filter by ?group_id=) — each with groups, is_favorite, last_logged_at, log_count
 POST   /products             Create product
 GET    /products/:id         Get single product
-PATCH  /products/:id         Update product
+PATCH  /products/:id         Update product (incl. { is_favorite: true|false })
 DELETE /products/:id         Soft delete (sets deleted_at, recoverable for 30 days)
 GET    /products/deleted     List recently-deleted products (within 30-day window)
 POST   /products/:id/restore Restore a recently-deleted product
@@ -753,19 +757,19 @@ Disabled account (users.disabled_at set)
 
 **Backend — data**
 - [ ] `users.role` (`'user'` | `'admin'`, default `'user'`) + `users.disabled_at` columns + migration
-- [ ] `user_profiles` table + migration
-- [ ] `user_settings` table + migration (units, timezone, notifications)
-- [ ] `user_hidden_groups` table + migration
+- [x] `user_profiles` table + migration
+- [x] `user_settings` table + migration (units, timezone, notifications)
+- [x] `user_hidden_groups` table + migration
 - [ ] CLI command to create/promote the first admin (no API path to admin)
 
 **Backend — endpoints**
 - [ ] `GET /me` (user + profile + settings + goals in one response)
-- [ ] `GET`/`PATCH /profile`
-- [ ] `GET`/`PATCH /settings`
-- [ ] Change password + delete account endpoints (delete confirmed by typed "DELETE", no password needed)
-- [ ] Hide/un-hide system group endpoints; update `GET /groups` to exclude hidden ones by default
-- [ ] `/log`, `/log/summary`, `/log/logged-days` compute day boundaries from `user_settings.timezone` (Phase 4 shipped before this setting existed — verify what it assumes today)
-- [ ] Login and refresh reject disabled accounts
+- [x] `GET`/`PATCH /profile`
+- [x] `GET`/`PATCH /settings`
+- [x] Change password + delete account endpoints (shipped as `POST /auth/change-password` + `DELETE /auth/me`, confirmed by typed "DELETE" client-side — endpoint path differs from the `/auth/account` spec'd above, no password required to delete)
+- [x] Hide/un-hide system group endpoints; `GET /groups` excludes hidden ones by default (`?include_hidden=true` to include them)
+- [x] `/log`, `/log/summary`, `/log/logged-days` compute day boundaries from `user_settings.timezone`
+- [ ] Login and refresh reject disabled accounts — blocked on `users.disabled_at` above
 - [ ] Avatar upload — blocked on Open Questions #4
 
 **Backend — admin**
@@ -776,15 +780,21 @@ Disabled account (users.disabled_at set)
 - [ ] Tests: non-admin gets 403 on every `/admin/*` route; guardrail cases
 
 **UI — Profile tab**
-- [ ] Profile tab + root screen with section layout (header, body stats, goals, preferences, groups, account)
-- [ ] Edit profile screen (display name, avatar, body stats), incl. empty / first-run state
-- [ ] Daily goals editor (moved from Phase 4) with implied-calories hint
-- [ ] "Edit goals" link on the Log page's daily summary, deep-linking to Profile → Daily goals
-- [ ] Preferences: units toggle, timezone picker, notifications toggle (with "coming soon" caption)
-- [ ] System group visibility screen (separate from custom group management, links to it)
-- [ ] Account: change password, log out, delete account (two-step, typed "DELETE") — ship now; sign-in methods screen (connect/disconnect Google & Apple) is *later TODO*, blocked with the rest of social sign-in above
-- [ ] Apply `user_settings.units` to every weight/height/quantity display across the app
+- [x] Profile tab + root screen with section layout (header, body stats, goals, preferences, groups, account)
+- [x] Edit profile screen (display name, avatar, body stats), incl. empty / first-run state
+- [x] Daily goals editor (moved from Phase 4) — ships as a plain manual-entry form; the implied-calories (4/9/4 kcal/g) hint isn't built yet, shows a static "Calculate for me" placeholder instead
+- [ ] "Edit goals" link on the Log page's daily summary, deep-linking to Profile → Daily goals — only the *empty*-goal state links out (`CaloriesSummaryCard`'s "Set a daily goal →"); no link once a goal is already set
+- [x] Preferences: units toggle, timezone picker, notifications toggle (with "Reminders coming soon" caption)
+- [x] System group visibility screen (separate from custom group management, links to it)
+- [x] Account: change password, log out, delete account (two-step, typed "DELETE") — ship now; sign-in methods screen (connect/disconnect Google & Apple) is *later TODO*, blocked with the rest of social sign-in above
+- [ ] Apply `user_settings.units` to every weight/height/quantity display across the app — done for Profile body stats and meal screens (`app/edit-profile.tsx`, `app/(tabs)/profile.tsx`, `app/add-meal.tsx`, `app/meal/[id].tsx`); not yet wired into product or log-entry gram displays
 - [ ] Admin section, rendered only for `role = 'admin'`: system groups, user management (incl. sign-in methods column), stats
+
+### Phase 5b — Products screen: filters, sort, favourites
+- [x] `products.is_favorite` + migration 0013; `PATCH /products/:id` accepts it
+- [x] Derived `last_logged_at` / `log_count` on every product response
+- [x] Filters sheet (groups match-any, brands, nutrition presets, max kcal), Sort sheet, favourites pill + heart on cards
+- [x] Group filtering moved client-side — the product store always holds the full library
 
 ### Phase 6 — Web & Deploy
 - [ ] React web app (Vite) with shared API client
@@ -836,4 +846,4 @@ Disabled account (users.disabled_at set)
 
 ---
 
-*Last updated: September 24, 2026. Update this file as decisions are made.*
+*Last updated: October 3, 2026. Update this file as decisions are made.*

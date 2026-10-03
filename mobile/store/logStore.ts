@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { api } from '../lib/api';
 import { Meal } from './mealStore';
+import { useProductStore } from './productStore';
 
 export type MealSlot = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 export type SourceType = 'product' | 'meal' | 'manual';
@@ -205,6 +206,7 @@ export const useLogStore = create<LogState>((set, get) => ({
 
   addEntry: async (payload) => {
     const { data } = await api.post<LogEntry>('/log', payload);
+    useProductStore.getState().markStatsStale();
     await get().loadDay();
     await get().fetchSummary();
     set({ loggedDaysKey: null });
@@ -261,6 +263,7 @@ export const useLogStore = create<LogState>((set, get) => ({
     });
     try {
       await api.delete(`/log/${id}`);
+      useProductStore.getState().markStatsStale();
       get().fetchSummary();
     } catch (err) {
       set({ entriesBySlot: previous });

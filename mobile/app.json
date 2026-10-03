@@ -11,13 +11,19 @@
       "expo-router",
       "expo-secure-store",
       "expo-font",
+      "@react-native-google-signin/google-signin",
       "@react-native-community/datetimepicker"
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.nutriscan"
+      "bundleIdentifier": "com.ishevchyk.nutriscan",
+      "icon": "./assets/favicon.png",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
+      "package": "com.ishevchyk.nutriscan",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -32,6 +38,13 @@
     },
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "0ac762c5-6236-4b92-83ce-417e4fa06c1f"
+      }
+    },
+    "owner": "ishevchyk"
   }
 }

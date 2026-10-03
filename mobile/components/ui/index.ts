@@ -9,3 +9,4 @@ export * from './PickerSheet';
 export * from './Stepper';
 export * from './SegmentedTabs';
 export * from './CollapsibleSection';
+export * from './Slider';
