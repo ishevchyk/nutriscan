@@ -38,7 +38,7 @@ export function LogEntryCard({ entry, product, mealName, adjustedCount, isLast, 
 
   const name =
     entry.source_type === 'product'
-      ? product?.name ?? 'Product'
+      ? entry.name ?? product?.name ?? 'Product'
       : entry.source_type === 'meal'
       ? mealName ?? 'Meal'
       : MANUAL_ENTRY_FALLBACK_NAME;

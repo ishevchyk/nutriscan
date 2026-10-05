@@ -41,6 +41,11 @@ export function IngredientCard({ ingredient, editable = false, busy = false, onA
               {ingredient.name}
             </Text>
             <LinkBadge linked={ingredient.is_linked} />
+            {ingredient.is_linked && ingredient.uses_own_values ? (
+              <View style={styles.editedTag}>
+                <Text style={styles.editedText}>Edited</Text>
+              </View>
+            ) : null}
           </View>
           {ingredient.brand ? <Text style={styles.brand}>{ingredient.brand}</Text> : null}
         </View>
@@ -115,6 +120,20 @@ function createStyles(colors: ThemeColors) {
       fontSize: Typography.fontSize.base,
       fontWeight: Typography.fontWeight.semibold,
       color: colors.text,
+    },
+    editedTag: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: Radii.full,
+      paddingVertical: 2,
+      paddingHorizontal: Spacing.sm,
+    },
+    editedText: {
+      fontFamily: Typography.fontFamily.mono,
+      fontSize: Typography.fontSize.xxs,
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: Typography.letterSpacing.label,
     },
     brand: {
       fontSize: Typography.fontSize.xs,

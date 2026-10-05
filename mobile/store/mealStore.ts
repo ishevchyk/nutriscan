@@ -12,6 +12,11 @@ export interface NutritionOut {
   fiber: number;
   sugar: number;
   salt: number;
+  saturated_fat: number;
+  // Extended nutrients {code: total}; `nutrients_partial` lists codes whose total
+  // only covers some ingredients (show as "≥ x").
+  nutrients?: Record<string, number>;
+  nutrients_partial?: string[];
 }
 
 export interface MealIngredient {
@@ -30,6 +35,11 @@ export interface MealIngredient {
   fiber: number | null;
   sugar: number | null;
   salt: number | null;
+  saturated_fat: number | null;
+  nutrients: Record<string, number> | null;
+  // false = follows the linked product's current values; true = unlinked, or
+  // a linked ingredient that was edited (relink to the same product resets it).
+  uses_own_values: boolean;
 }
 
 export interface MealPortion {
@@ -77,6 +87,8 @@ export type ManualIngredientInput = {
   fiber?: number | null;
   sugar?: number | null;
   salt?: number | null;
+  saturated_fat?: number | null;
+  nutrients?: Record<string, number> | null;
 };
 export type IngredientInput = LinkedIngredientInput | ManualIngredientInput;
 
@@ -273,6 +285,8 @@ export const useMealStore = create<MealState>((set, get) => ({
       fiber: ingredient.fiber,
       sugar: ingredient.sugar,
       salt: ingredient.salt,
+      saturated_fat: ingredient.saturated_fat,
+      nutrients: ingredient.nutrients ?? undefined,
     };
     const product = await useProductStore.getState().addProduct(newProduct);
     await get().relinkIngredient(mealId, ingredientId, product.id);
