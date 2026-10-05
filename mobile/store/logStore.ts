@@ -20,6 +20,9 @@ export interface LogEntry {
   meal_slot: MealSlot;
   source_type: SourceType;
   product_id: string | null;
+  // Product name frozen at log time (product entries); survives edits to or
+  // purging of the product, so history never shifts.
+  name: string | null;
   quantity_grams: number | null;
   meal_id: string | null;
   portion_id: string | null;
@@ -29,7 +32,7 @@ export interface LogEntry {
   manual_carbs: number | null;
   created_at: string;
   macros: LogEntryMacros;
-  meal_ingredients: { product_id: string | null; grams: number }[] | null;
+  meal_ingredients: { product_id: string | null; grams: number; name: string | null }[] | null;
 }
 
 export type LogEntriesBySlot = Record<MealSlot, LogEntry[]>;

@@ -19,6 +19,10 @@ export type IngredientVM = {
   fiber: number | null;
   sugar: number | null;
   salt: number | null;
+  saturated_fat: number | null;
+  nutrients: Record<string, number> | null;
+  /** Linked + true = edited away from the product (shown as EDITED). */
+  uses_own_values: boolean;
 };
 
 export function toIngredientVM(ingredient: MealIngredient): IngredientVM {
@@ -38,5 +42,8 @@ export function toIngredientVM(ingredient: MealIngredient): IngredientVM {
     fiber: ingredient.fiber,
     sugar: ingredient.sugar,
     salt: ingredient.salt,
+    saturated_fat: ingredient.saturated_fat,
+    nutrients: ingredient.nutrients,
+    uses_own_values: ingredient.uses_own_values,
   };
 }

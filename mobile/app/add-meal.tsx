@@ -20,6 +20,7 @@ import { AddIngredientSheet } from '../components/meals/AddIngredientSheet';
 import { MissingConversionSheet } from '../components/meals/MissingConversionSheet';
 import { IngredientVM } from '../components/meals/types';
 import { computeIngredientsNutrition } from '../utils/nutritionUtils';
+import { compactNutrients } from '../utils/nutrientFacts';
 import { CollapsibleSection, RichEditorField, SectionLabel, StatCard, Stepper, UnderlineField } from '../components/ui';
 
 const DEFAULT_INGREDIENT_AMOUNT = 100;
@@ -46,6 +47,10 @@ function productToDraft(product: Product): IngredientVM {
         fiber: product.fiber,
         sugar: product.sugar,
         salt: product.salt,
+        saturated_fat: product.saturated_fat,
+        nutrients: compactNutrients(product.nutrients),
+        // A library product in the builder follows the product once saved.
+        uses_own_values: false,
     };
 }
 
@@ -65,6 +70,8 @@ function draftToInput(draft: IngredientVM): IngredientInput {
         fiber: draft.fiber,
         sugar: draft.sugar,
         salt: draft.salt,
+        saturated_fat: draft.saturated_fat,
+        nutrients: draft.nutrients,
     };
 }
 
@@ -136,7 +143,7 @@ export default function AddMeal() {
             if (result.kind === 'library') {
                 setDrafts((list) => [...list, productToDraft(result.product)]);
             } else {
-                const { name, brand, calories, protein, fat, carbs, fiber, sugar, salt } = result.values;
+                const { name, brand, calories, protein, fat, carbs, fiber, sugar, salt, saturated_fat, nutrients } = result.values;
                 setDrafts((list) => [
                     ...list,
                     {
@@ -155,6 +162,9 @@ export default function AddMeal() {
                         fiber,
                         sugar,
                         salt,
+                        saturated_fat,
+                        nutrients: compactNutrients(nutrients),
+                        uses_own_values: true,
                     },
                 ]);
             }
@@ -295,6 +305,9 @@ export default function AddMeal() {
                                               fiber: product.fiber,
                                               sugar: product.sugar,
                                               salt: product.salt,
+                                              saturated_fat: product.saturated_fat,
+                                              nutrients: compactNutrients(product.nutrients),
+                                              uses_own_values: false,
                                               // Force back to grams -- a household unit's
                                               // grams-per-unit is product-specific.
                                               input_unit: GRAM_UNIT,
@@ -344,6 +357,8 @@ export default function AddMeal() {
                         fiber: managedDraft.fiber,
                         sugar: managedDraft.sugar,
                         salt: managedDraft.salt,
+                        saturated_fat: managedDraft.saturated_fat,
+                        nutrients: managedDraft.nutrients ?? undefined,
                     });
                     updateDraft(managedDraft.key, { product_id: product.id, is_linked: true });
                     setManagedKey(null);

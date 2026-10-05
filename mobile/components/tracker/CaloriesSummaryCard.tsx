@@ -32,13 +32,16 @@ export function CaloriesSummaryCard({ totals, goals }: CaloriesSummaryCardProps)
   }
 
   const left = Math.round(goals.calories - totals.calories);
+  const over = left < 0;
 
   return (
     <View style={styles.card}>
       <View style={styles.headerRow}>
         <Text style={styles.label}>CALORIES</Text>
         {/*TODO:Add button to switch between views and open full view*/}
-        <Text style={styles.leftLabel}>{left} KCAL LEFT</Text>
+        {over
+            ? <Text style={[styles.leftLabel, styles.overLabel]}>{Math.abs(left)} KCAL OVERDUE</Text>
+            : <Text style={styles.leftLabel}>{left} KCAL LEFT</Text>}
       </View>
       <View style={styles.valueRow}>
         <Text style={styles.currentValue}>{Math.round(totals.calories)}</Text>
@@ -100,6 +103,9 @@ function createStyles(colors: ThemeColors) {
       letterSpacing: Typography.letterSpacing.label,
       textTransform: 'uppercase',
       color: colors.textSecondary,
+    },
+    overLabel: {
+      color: colors.primary,
     },
     valueRow: { flexDirection: 'row', alignItems: 'baseline' },
     currentValue: {

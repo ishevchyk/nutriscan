@@ -13,6 +13,8 @@ type IngredientManageSheetProps = {
   onClose: () => void;
   onOpenInLibrary: (productId: string) => void;
   onSwap: () => void;
+  /** Shown for a linked ingredient edited away from its product. */
+  onResetToProduct?: () => void;
   editValuesAllowedUnits: string[];
   onEditValues: (values: IngredientFormValues) => void | Promise<unknown>;
   onUnlink: () => void;
@@ -27,6 +29,7 @@ export function IngredientManageSheet({
   onClose,
   onOpenInLibrary,
   onSwap,
+  onResetToProduct,
   editValuesAllowedUnits,
   onEditValues,
   onUnlink,
@@ -89,8 +92,17 @@ export function IngredientManageSheet({
             <ActionRow
               styles={styles}
               title="Swap linked product"
-              description="Pick a different product; macros update and nutrition recalculates"
+              description="Pick a different product; the ingredient follows it and nutrition recalculates"
               onPress={onSwap}
+            />
+          ) : null}
+
+          {ingredient.is_linked && ingredient.uses_own_values && onResetToProduct ? (
+            <ActionRow
+              styles={styles}
+              title="Reset to product values"
+              description="Follow the saved product again; your edits to this ingredient are dropped"
+              onPress={onResetToProduct}
             />
           ) : null}
 
@@ -113,7 +125,7 @@ export function IngredientManageSheet({
             <ActionRow
               styles={styles}
               title="Unlink from product"
-              description="Keeps the current macro snapshot on the ingredient"
+              description="Keeps the current values on the ingredient"
               onPress={onUnlink}
             />
           ) : (

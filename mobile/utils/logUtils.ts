@@ -97,7 +97,7 @@ export function scaleMealIngredientsToTotal(
   }
   const scale = newTotalGrams / entry.quantity_grams;
   return entry.meal_ingredients
-    .filter((i): i is { product_id: string; grams: number } => i.product_id != null)
+    .filter((i): i is typeof i & { product_id: string } => i.product_id != null)
     .map((i) => ({ product_id: i.product_id, grams: i.grams * scale }));
 }
 

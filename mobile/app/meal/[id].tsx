@@ -12,6 +12,7 @@ import { useMealForm, MealFormValues } from '../../hooks/useMealForm';
 import { useUnitConversionGuard } from '../../hooks/useUnitConversionGuard';
 import { useMealStore } from '../../store/mealStore';
 import { afterSheetClose } from '../../utils/afterSheetClose';
+import { compactNutrients } from '../../utils/nutrientFacts';
 import { NutritionSummaryCard } from '../../components/meals/NutritionSummaryCard';
 import { IngredientCard } from '../../components/meals/IngredientCard';
 import { IngredientManageSheet } from '../../components/meals/IngredientManageSheet';
@@ -166,7 +167,7 @@ export default function MealDetail() {
           input_unit: GRAM_UNIT,
         });
       } else {
-        const { name, brand, calories, protein, fat, carbs, fiber, sugar, salt } = result.values;
+        const { name, brand, calories, protein, fat, carbs, fiber, sugar, salt, saturated_fat, nutrients } = result.values;
         await addIngredient(id, {
           name,
           brand: brand || null,
@@ -179,6 +180,8 @@ export default function MealDetail() {
           fiber,
           sugar,
           salt,
+          saturated_fat,
+          nutrients: compactNutrients(nutrients),
         });
       }
     });
@@ -375,6 +378,12 @@ export default function MealDetail() {
         onOpenInLibrary={(productId) => {
           setManagedKey(null);
           afterSheetClose(() => router.push({ pathname: '/product/[id]', params: { id: productId } }));
+        }}
+        onResetToProduct={() => {
+          if (!managedIngredient?.product_id) return;
+          const { key, product_id } = managedIngredient;
+          setManagedKey(null);
+          relinkIngredient(meal.id, key, product_id);
         }}
         onSwap={() => {
           setManagedKey(null);
