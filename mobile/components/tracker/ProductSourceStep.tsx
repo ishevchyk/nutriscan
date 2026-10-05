@@ -7,6 +7,7 @@ import { usePickProduct } from '../../hooks/usePickProduct';
 import { Product } from '../../store/productStore';
 import { MealSlot, NewProductLogEntry, useLogStore } from '../../store/logStore';
 import { computeIngredientsNutrition } from '../../utils/nutritionUtils';
+import { formatAmount } from '../../utils/formatUtils';
 import { StatCard } from '../ui';
 
 type ProductSourceStepProps = {
@@ -22,7 +23,11 @@ export function ProductSourceStep({ mealSlot, onLogged, onCancel }: ProductSourc
   const { addEntry } = useLogStore();
 
   const [product, setProduct] = useState<Product | null>(null);
-  const [grams, setGrams] = useState<number | null>(null);
+  const [typedGrams, setTypedGrams] = useState<number | null>(null);
+  // Portion mode: grams = count × portion.grams. The API still receives plain
+  // quantity_grams, so server-side macro math is unchanged.
+  const [portionId, setPortionId] = useState<string | null>(null);
+  const [count, setCount] = useState<number | null>(1);
   const [saving, setSaving] = useState(false);
   const startedPick = useRef(false);
 
@@ -36,9 +41,13 @@ export function ProductSourceStep({ mealSlot, onLogged, onCancel }: ProductSourc
         return;
       }
       setProduct(picked);
+      setPortionId(picked.portions.find((p) => p.is_default)?.id ?? null);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const portion = product?.portions.find((p) => p.id === portionId) ?? null;
+  const grams = portion ? (count ? count * portion.grams : null) : typedGrams;
 
   const preview = useMemo(() => {
     if (!product || !grams) return null;
@@ -72,7 +81,24 @@ export function ProductSourceStep({ mealSlot, onLogged, onCancel }: ProductSourc
       <Text style={styles.heading}>{product.name}</Text>
       {product.brand ? <Text style={styles.brand}>{product.brand}</Text> : null}
 
-      <StatCard label="Grams consumed" unit="g" value={grams} onChangeValue={setGrams} />
+      {product.portions.length > 0 && (
+        <View style={styles.chips}>
+          <Pressable style={[styles.chip, !portion && styles.chipOn]} onPress={() => setPortionId(null)}>
+            <Text style={[styles.chipText, !portion && styles.chipTextOn]}>GRAMS</Text>
+          </Pressable>
+          {product.portions.map((p) => (
+            <Pressable key={p.id} style={[styles.chip, portion?.id === p.id && styles.chipOn]} onPress={() => setPortionId(p.id)}>
+              <Text style={[styles.chipText, portion?.id === p.id && styles.chipTextOn]}>{p.name.toUpperCase()}</Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
+
+      {portion ? (
+        <StatCard label={`Count (${formatAmount(portion.grams)} g each)`} unit="×" value={count} onChangeValue={setCount} />
+      ) : (
+        <StatCard label="Grams consumed" unit="g" value={typedGrams} onChangeValue={setTypedGrams} />
+      )}
 
       {preview && (
         <View style={styles.previewRow}>
@@ -120,6 +146,23 @@ function createStyles(colors: ThemeColors) {
       color: colors.textSecondary,
       marginTop: -Spacing.sm,
     },
+    chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
+    chip: {
+      borderRadius: Radii.full,
+      paddingVertical: Spacing.sm,
+      paddingHorizontal: Spacing.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+    },
+    chipOn: { backgroundColor: colors.primary, borderColor: colors.primaryPressed },
+    chipText: {
+      fontFamily: Typography.fontFamily.monoMedium,
+      fontSize: Typography.fontSize.xs,
+      letterSpacing: Typography.letterSpacing.label,
+      color: colors.textSecondary,
+    },
+    chipTextOn: { color: colors.onPrimary },
     previewRow: {
       flexDirection: 'row',
       backgroundColor: colors.card,

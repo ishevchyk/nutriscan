@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
-import { Spacing, ThemeColors } from '../constants/theme';
+import { Radii, Spacing, ThemeColors, Typography } from '../constants/theme';
+import { useAddProductForMeal } from '../hooks/useAddProductForMeal';
 import { useThemeColor } from '../hooks/useThemeColor';
 import { useFilteredProducts } from '../hooks/useFilteredProducts';
 import { useProductStore, Product } from '../store/productStore';
@@ -41,6 +42,15 @@ export default function ProductPickerScreen() {
     };
   }, []);
 
+  const { addProductForMeal } = useAddProductForMeal();
+
+  // The product being looked for may not exist yet: create it (name prefilled
+  // from the search text) and pick it straight away.
+  async function handleCreate() {
+    const result = await addProductForMeal({ libraryOnly: true, name: query.trim() || undefined });
+    if (result?.kind === 'library') handleSelect(result.product);
+  }
+
   function handleSelect(product: Product) {
     usePickerStore.getState().resolve(product);
     router.back();
@@ -69,6 +79,10 @@ export default function ProductPickerScreen() {
         autoFocus
       />
 
+      <Pressable style={styles.createButton} onPress={handleCreate}>
+        <Text style={styles.createText}>{query.trim() ? `+ Create "${query.trim()}"` : '+ New product'}</Text>
+      </Pressable>
+
       {loaded && visibleProducts.length === 0 && <Text style={styles.placeholder}>No products found.</Text>}
 
       <FlatList
@@ -84,6 +98,20 @@ export default function ProductPickerScreen() {
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, padding: Spacing.xl, backgroundColor: colors.background, gap: Spacing.lg },
+    createButton: {
+      borderWidth: 1,
+      borderStyle: 'dashed',
+      borderColor: colors.primary,
+      borderRadius: Radii.lg,
+      paddingVertical: Spacing.md,
+      alignItems: 'center',
+    },
+    createText: {
+      fontFamily: Typography.fontFamily.monoMedium,
+      fontSize: Typography.fontSize.sm,
+      letterSpacing: Typography.letterSpacing.label,
+      color: colors.primary,
+    },
     placeholder: { color: colors.textSecondary, textAlign: 'center', marginTop: 40 },
   });
 }

@@ -1,11 +1,11 @@
 // components/ScreenHeader.tsx
+import {ReactNode, useMemo} from 'react';
 import {View, Text, Pressable, StyleSheet} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {router} from 'expo-router';
 import {Spacing} from "../../constants/Spacing";
 import {Typography} from "../../constants/Typography";
 import {useThemeColor} from "../../hooks/useThemeColor";
-import {useMemo} from "react";
 import {ThemeColors} from "../../constants/Colors";
 
 
@@ -18,9 +18,11 @@ type ScreenHeaderProps = {
     headerTitle: string;
     leftAction?: HeaderAction;
     rightAction?: HeaderAction;
+    /** Small status (e.g. autosave indicator) shown just before the right action. */
+    statusSlot?: ReactNode;
 };
 
-export function ScreenHeader({headerTitle, leftAction, rightAction}: ScreenHeaderProps) {
+export function ScreenHeader({headerTitle, leftAction, rightAction, statusSlot}: ScreenHeaderProps) {
     const colors = useThemeColor();
     const styles = useMemo(() => createStyles(colors), [colors]);
     const insets = useSafeAreaInsets();
@@ -39,6 +41,7 @@ export function ScreenHeader({headerTitle, leftAction, rightAction}: ScreenHeade
                 <View style={styles.header}>
                     {renderAction(leftAction)}
                     <Text style={styles.title}>{headerTitle}</Text>
+                    {statusSlot ? <View style={styles.status}>{statusSlot}</View> : null}
                     {renderAction(rightAction)}
                 </View>
         </View>
@@ -80,5 +83,6 @@ function createStyles(colors: ThemeColors) {
             letterSpacing: Typography.letterSpacing.label,
         },
         actionPlaceholder: { width: 1 },
+        status: { marginRight: Spacing.md },
     })
 }

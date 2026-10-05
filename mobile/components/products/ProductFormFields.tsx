@@ -1,25 +1,35 @@
-import { StyleSheet } from 'react-native';
+import { useEffect } from 'react';
+import { StyleSheet, Text } from 'react-native';
 import { Control, Controller, FieldErrors, FieldPath } from 'react-hook-form';
 
-import { Spacing } from '../../constants/theme';
+import { Spacing, Typography } from '../../constants/theme';
 import { ProductFormInput, ProductFormValues } from '../../hooks/useProductForm';
-import { SectionLabel, UnderlineField, StatGrid, StatCard, RichEditorField } from '../ui';
+import { SectionLabel, UnderlineField, RichEditorField } from '../ui';
 import { GroupPicker } from '../groups/GroupPicker';
 import { Group } from '../../store/types';
+import { Product } from '../../store/productStore';
+import { useNutrientStore } from '../../store/nutrientStore';
+import { ProductNutritionSections } from './ProductNutritionSections';
+import { NewPortionDraft, NutritionBasis } from '../../hooks/useNutritionBasis';
+import { PortionsSection } from './PortionsSection';
 
 type FormControl = Control<ProductFormInput, any, ProductFormValues>;
 type TextFieldName = Extract<FieldPath<ProductFormInput>, 'name' | 'brand'>;
-type StatFieldName = Extract<
-    FieldPath<ProductFormInput>,
-    'calories' | 'protein' | 'fat' | 'carbs' | 'fiber' | 'sugar' | 'salt'
->;
-
 type ProductFormFieldsProps = {
     control: FormControl;
     errors: FieldErrors<ProductFormInput>;
     groups: Group[];
     selectedGroupIds: string[];
     onToggleGroup: (groupId: string) => void;
+    // Set on the edit screen: enables portion switching and management
+    // (portions are saved per-product, so a not-yet-created product has none).
+    product?: Product;
+    basis: NutritionBasis;
+    onSavePortion?: (portion: NewPortionDraft) => Promise<void>;
+    /** Called when an input is committed (blur); the edit screen autosaves on it. */
+    onCommit?: () => void;
+    /** Wraps portion writes so they show up in the autosave indicator. */
+    onTrack?: <T>(task: () => Promise<T>) => Promise<T | undefined>;
 };
 
 function ControlledUnderlineField({
@@ -27,53 +37,45 @@ function ControlledUnderlineField({
     name,
     label,
     error,
+    onCommit,
 }: {
     control: FormControl;
     name: TextFieldName;
     label: string;
     error?: string;
+    onCommit?: () => void;
 }) {
     return (
         <Controller
             control={control}
             name={name}
             render={({ field: { onChange, onBlur, value } }) => (
-                <UnderlineField label={label} value={value ?? ''} onChangeText={onChange} onBlur={onBlur} error={error} />
+                <UnderlineField
+                    label={label}
+                    value={value ?? ''}
+                    onChangeText={onChange}
+                    onBlur={() => {
+                        onBlur();
+                        onCommit?.();
+                    }}
+                    error={error}
+                />
             )}
         />
     );
 }
 
-function ControlledStatCard({
-    control,
-    name,
-    label,
-    unit,
-    size,
-}: {
-    control: FormControl;
-    name: StatFieldName;
-    label: string;
-    unit: string;
-    size: 'lg' | 'sm';
-}) {
-    return (
-        <Controller
-            control={control}
-            name={name}
-            render={({ field: { onChange, value } }) => (
-                <StatCard label={label} unit={unit} value={value as number | null} onChangeValue={onChange} size={size} />
-            )}
-        />
-    );
-}
+export function ProductFormFields({ control, errors, groups, selectedGroupIds, onToggleGroup, product, basis, onSavePortion, onCommit, onTrack }: ProductFormFieldsProps) {
+    const { nutrients, loaded, loadNutrients } = useNutrientStore();
+    useEffect(() => {
+        if (!loaded) loadNutrients();
+    }, [loaded]);
 
-export function ProductFormFields({ control, errors, groups, selectedGroupIds, onToggleGroup }: ProductFormFieldsProps) {
     return (
         <>
             <SectionLabel>Identity</SectionLabel>
-            <ControlledUnderlineField control={control} name="name" label="Name" error={errors.name?.message} />
-            <ControlledUnderlineField control={control} name="brand" label="Brand" error={errors.brand?.message} />
+            <ControlledUnderlineField control={control} name="name" label="Name" error={errors.name?.message} onCommit={onCommit} />
+            <ControlledUnderlineField control={control} name="brand" label="Brand" error={errors.brand?.message} onCommit={onCommit} />
             <Controller
                 control={control}
                 name="barcode"
@@ -87,20 +89,15 @@ export function ProductFormFields({ control, errors, groups, selectedGroupIds, o
                 )}
             />
 
-            <SectionLabel style={styles.sectionSpacing}>Macronutrients (per 100g)</SectionLabel>
-            <StatGrid columns={2}>
-                <ControlledStatCard control={control} name="calories" label="Calories" unit="kcal" size="lg" />
-                <ControlledStatCard control={control} name="protein" label="Protein" unit="g" size="lg" />
-                <ControlledStatCard control={control} name="fat" label="Fat" unit="g" size="lg" />
-                <ControlledStatCard control={control} name="carbs" label="Carbs" unit="g" size="lg" />
-            </StatGrid>
+            {product && <ReadOnlySource source={product.source} />}
 
-            <SectionLabel style={styles.sectionSpacing}>Detail (per 100g)</SectionLabel>
-            <StatGrid columns={3}>
-                <ControlledStatCard control={control} name="fiber" label="Fiber" unit="g" size="sm" />
-                <ControlledStatCard control={control} name="sugar" label="Sugar" unit="g" size="sm" />
-                <ControlledStatCard control={control} name="salt" label="Salt" unit="g" size="sm" />
-            </StatGrid>
+            <ProductNutritionSections control={control} portions={product?.portions ?? []} nutrients={nutrients} basis={basis} onSavePortion={onSavePortion} onCommit={onCommit} />
+
+            {product?.source === 'catalog' && (
+                <Text style={styles.attribution}>DATA FROM OPEN FOOD FACTS · ODBL</Text>
+            )}
+
+            {product && <PortionsSection product={product} onTrack={onTrack} />}
 
             <SectionLabel style={styles.sectionSpacing}>Notes</SectionLabel>
             <Controller
@@ -117,8 +114,32 @@ export function ProductFormFields({ control, errors, groups, selectedGroupIds, o
     );
 }
 
+const SOURCE_LABELS: Record<string, string> = {
+    manual: 'Manual entry',
+    catalog: 'Open Food Facts',
+    ai_scan: 'AI scan',
+    ai_chat: 'AI chat',
+};
+
+function ReadOnlySource({ source }: { source: string | null }) {
+    return (
+        <UnderlineField
+            label="Source"
+            value={SOURCE_LABELS[source ?? 'manual'] ?? source ?? ''}
+            editable={false}
+        />
+    );
+}
+
 const styles = StyleSheet.create({
     sectionSpacing: {
         marginTop: Spacing.lg,
+    },
+    attribution: {
+        marginTop: Spacing.md,
+        fontFamily: Typography.fontFamily.mono,
+        fontSize: Typography.fontSize.xxs,
+        letterSpacing: Typography.letterSpacing.label,
+        color: '#9A9189',
     },
 });

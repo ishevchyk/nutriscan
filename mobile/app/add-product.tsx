@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { Radii, Spacing, ThemeColors, Typography } from '../constants/theme';
 import { useThemeColor } from '../hooks/useThemeColor';
+import { useNutritionBasis } from '../hooks/useNutritionBasis';
 import { useProductForm, ProductFormValues } from '../hooks/useProductForm';
 import { useProductStore } from '../store/productStore';
 import { useGroupStore } from '../store/groupStore';
@@ -12,9 +13,13 @@ import { ProductFormFields } from '../components/products/ProductFormFields';
 
 export default function AddProduct() {
     const router = useRouter();
-    const { forMeal } = useLocalSearchParams<{ forMeal?: string }>();
+    const { forMeal, libraryOnly, name } = useLocalSearchParams<{ forMeal?: string; libraryOnly?: string; name?: string }>();
     const isForMeal = forMeal === '1';
-    const { addProduct, assignProductToGroups } = useProductStore();
+    // The product picker reuses for-meal mode to get the saved product back,
+    // but only meals can keep a product out of the library.
+    const allowMealOnly = isForMeal && libraryOnly !== '1';
+    const { addProduct, assignProductToGroups, addPortion } = useProductStore();
+    const basis = useNutritionBasis([]);
     const { groups, loaded: groupsLoaded, fetchGroups } = useGroupStore();
     const colors = useThemeColor();
     const styles = useMemo(() => createStyles(colors), [colors]);
@@ -37,7 +42,7 @@ export default function AddProduct() {
         };
     }, [isForMeal]);
 
-    const { control, handleSubmit, formState: { errors } } = useProductForm();
+    const { control, handleSubmit, formState: { errors } } = useProductForm(undefined, name);
     const [saving, setSaving] = useState(false);
 
     function toggleGroup(groupId: string) {
@@ -49,6 +54,9 @@ export default function AddProduct() {
         setSaving(true);
         try {
             const product = await addProduct(data);
+            if (basis.newPortion) {
+                await addPortion(product.id, { ...basis.newPortion, is_default: true });
+            }
             if (selectedGroupIds.length > 0) {
                 await assignProductToGroups(product.id, selectedGroupIds);
             }
@@ -75,6 +83,7 @@ export default function AddProduct() {
                 groups={groups}
                 selectedGroupIds={selectedGroupIds}
                 onToggleGroup={toggleGroup}
+                basis={basis}
             />
 
             <Pressable
@@ -85,11 +94,11 @@ export default function AddProduct() {
                 {saving ? (
                     <ActivityIndicator color={colors.onPrimary} />
                 ) : (
-                    <Text style={styles.buttonText}>{isForMeal ? 'Save to Library' : 'Save'}</Text>
+                    <Text style={styles.buttonText}>{allowMealOnly ? 'Save to Library' : 'Save'}</Text>
                 )}
             </Pressable>
 
-            {isForMeal && (
+            {allowMealOnly && (
                 <Pressable
                     style={[styles.secondaryButton, saving && styles.buttonDisabled]}
                     onPress={handleSubmit(onSubmitMealOnly)}
