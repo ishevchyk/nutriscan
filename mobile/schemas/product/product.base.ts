@@ -12,6 +12,8 @@ export const ProductFields = {
     fiber: z.number().nonnegative().nullable(),
     sugar: z.number().nonnegative().nullable(),
     salt: z.number().nonnegative().nullable(),
+    saturated_fat: z.number().nonnegative().nullable(),
+    nutrients: z.record(z.string(), z.number().nonnegative().nullable()),
     notes: z.string().nullable(),
 };
 

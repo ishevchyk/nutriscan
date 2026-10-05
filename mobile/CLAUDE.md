@@ -5,7 +5,7 @@ See README.md for full project overview,
 database schema, API endpoints, and AI integration details.
 
 ## Stack
-- expo-camera — camera for AI photo scanning (not yet added as a dependency; needed for Phase 3)
+- expo-camera — camera for AI photo scanning (not yet added as a dependency; needed for Phase 6)
 
 > **Offline support (SQLite + sync queue) was deliberately deferred.**
 > The app currently reads and writes directly against the backend API on
@@ -30,6 +30,13 @@ database schema, API endpoints, and AI integration details.
 - Filters/sort/favourites-only state lives in `store/productFilterStore.ts` (session-only, not persisted); pure logic in `utils/productFilters.ts`. Everything filters client-side — `loadProducts()` always fetches the full library, never `?group_id=`, because the tracker and pickers read the same store list.
 - The product picker (`app/product-picker.tsx`) reuses the same controls via `components/products/ProductFilterBar.tsx` + `hooks/useFilteredProducts.ts`, but with its own per-mount state (`useLocalProductFilters`) so its filters start clean and never leak into the tab. The Filters/Sort sheets are controlled (`filterState` prop).
 - `last_logged_at`/`log_count` come from the backend; `logStore` calls `markStatsStale()` after adding/removing an entry and the Products tab refetches on next focus.
+
+## Product detail / nutrition
+- `app/product/[id].tsx` is the edit form and **autosaves** (no Save button): fields commit on blur (notes ~1.2 s after typing stops), only changed fields are PATCHed, saves are serialized by `hooks/useSaveQueue.ts` (one in flight, latest values queued), and the header shows `Saving… / ✓ Saved / Couldn't save · Retry` (`SaveStatusLabel` via `ScreenHeader`'s `statusSlot`). Groups and portions also write immediately through the same queue. Leaving with an uncommitted edit flushes it on unmount. Delete has no confirmation: it goes back and shows a global toast (`store/toastStore.ts`, `<ToastHost/>` in `app/_layout.tsx`) with UNDO -> `restoreProduct`.
+- The form UI: `components/products/ProductNutritionSections.tsx` renders the per-100g / per-portion switch, macro cards, EU breakdown (%RI) and vitamins & minerals (%NRV); every row is an inline input in any view. The form always stores per 100g; in a portion view (`hooks/useNutritionBasis.ts`) values are scaled for display and converted back on input, and the `+ PORTION` chip lets you type a pack's per-portion values with a new portion name/grams (created with SAVE PORTION on the edit screen, or on Save when adding a product). The screen always opens on per-100g. Row layout/reference intakes live in `utils/nutrientFacts.ts`; labels/units/NRVs come from `GET /nutrients` via `store/nutrientStore.ts` (fetched once).
+- Optional facts (fiber, sugar, salt, saturated_fat, extended nutrients) are null = unknown, never coerced to 0 (`optionalAmount` in `schemas/product/product.form.ts`). Calories/protein/fat/carbs keep the 0 default. Clearing an extended nutrient sends `null` on PATCH (deletes it).
+- Portions (`PortionsSection.tsx`, `productStore` portion actions) write straight to the API. The log flow's Product step can log portion × count; it still posts plain `quantity_grams`.
+- Meal ingredients follow their product unless edited (`uses_own_values`; the ingredient card shows an EDITED tag with Reset to product values). Log entries are frozen at log time (`entry.name`), so editing a product never changes past days. The mobile meal UI only passes extended nutrients through (no editing/display of extended totals yet).
 
 ## AI scanning flow
 1. User taps Scan tab → camera opens

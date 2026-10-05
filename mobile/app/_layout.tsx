@@ -14,6 +14,7 @@ import {router} from "expo-router";
 import {usePickerStore} from "../store/pickerStore";
 import {initStoreDebugLogging} from "../utils/debugStoreLogger";
 import {ThemeOverrideProvider} from "../contexts/ThemeOverrideContext";
+import {ToastHost} from "../components/ui";
 
 SplashScreen.preventAutoHideAsync();
 initStoreDebugLogging();
@@ -201,6 +202,7 @@ export default function RootLayout() {
                     }}
                 />
             </Stack>
+            <ToastHost/>
         </ThemeOverrideProvider>
         </SafeAreaProvider>
         </GestureHandlerRootView>

@@ -19,13 +19,18 @@ const defaultValues: ProductFormInput = {
     fiber: null,
     sugar: null,
     salt: null,
+    saturated_fat: null,
+    nutrients: {},
     notes: '',
 };
 
-export function useProductForm(product?: Product) {
+export function useProductForm(product?: Product, initialName?: string) {
     return useForm<ProductFormInput, any, ProductFormValues>({
         resolver: zodResolver(ProductFormSchema),
-        defaultValues,
+        // Autosave updates the product (and so `values`) while the user is still
+        // typing elsewhere; never clobber fields they've edited.
+        resetOptions: { keepDirtyValues: true },
+        defaultValues: initialName ? { ...defaultValues, name: initialName } : defaultValues,
         values: product
             ? {
                 name: product.name,
@@ -38,6 +43,8 @@ export function useProductForm(product?: Product) {
                 fiber: product.fiber,
                 sugar: product.sugar,
                 salt: product.salt,
+                saturated_fat: product.saturated_fat,
+                nutrients: product.nutrients,
                 notes: product.notes,
             }
             : undefined,

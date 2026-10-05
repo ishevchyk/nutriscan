@@ -2,6 +2,13 @@ import { create } from 'zustand';
 import { api } from '../lib/api';
 import { Group } from './types';
 
+export interface ProductPortion {
+  id: string;
+  name: string;
+  grams: number;
+  is_default: boolean;
+}
+
 export interface Product {
   id: string;
   user_id: string;
@@ -15,6 +22,7 @@ export interface Product {
   fiber: number | null;
   sugar: number | null;
   salt: number | null;
+  saturated_fat: number | null;
   serving_size: number | null;
   serving_unit: string | null;
   notes: string | null;
@@ -24,6 +32,10 @@ export interface Product {
   deleted_at: string | null;
   is_favorite: boolean;
   groups: Group[];
+  // Extended nutrients {code: amount per 100 g in the nutrient's own unit}; a
+  // missing code means unknown (see nutrientStore for labels/units/NRVs).
+  nutrients: Record<string, number>;
+  portions: ProductPortion[];
   // Derived server-side from the log (direct product entries + logged meals
   // that include it) -- read-only, see backend products.py _attach_log_stats.
   last_logged_at: string | null;
@@ -37,9 +49,21 @@ export type NewProduct = Pick<Product, 'name'> &
   Partial<
     Omit<
       Product,
-      'id' | 'user_id' | 'name' | 'created_at' | 'updated_at' | 'groups' | 'last_logged_at' | 'log_count'
+      | 'id'
+      | 'user_id'
+      | 'name'
+      | 'created_at'
+      | 'updated_at'
+      | 'groups'
+      | 'portions'
+      | 'nutrients'
+      | 'last_logged_at'
+      | 'log_count'
     >
-  >;
+  > & {
+    // On PATCH a null amount clears that nutrient back to unknown.
+    nutrients?: Record<string, number | null>;
+  };
 
 interface ProductState {
   products: Product[];
@@ -60,6 +84,9 @@ interface ProductState {
   restoreProduct: (id: string) => Promise<void>;
   assignProductToGroups: (productId: string, groupIds: string[]) => Promise<void>;
   removeProductFromGroup: (productId: string, groupId: string) => Promise<void>;
+  addPortion: (productId: string, portion: Omit<ProductPortion, 'id'>) => Promise<ProductPortion>;
+  updatePortion: (productId: string, portionId: string, patch: Partial<Omit<ProductPortion, 'id'>>) => Promise<void>;
+  removePortion: (productId: string, portionId: string) => Promise<void>;
 }
 
 export const useProductStore = create<ProductState>((set, get) => ({
@@ -139,4 +166,29 @@ export const useProductStore = create<ProductState>((set, get) => ({
       ),
     });
   },
+
+  // Portions change at most one default server-side, so every portion write
+  // refetches the product's list instead of patching it locally.
+  addPortion: async (productId, portion) => {
+    const { data } = await api.post<ProductPortion>(`/products/${productId}/portions`, portion);
+    await refreshPortions(productId);
+    return data;
+  },
+
+  updatePortion: async (productId, portionId, patch) => {
+    await api.patch(`/products/${productId}/portions/${portionId}`, patch);
+    await refreshPortions(productId);
+  },
+
+  removePortion: async (productId, portionId) => {
+    await api.delete(`/products/${productId}/portions/${portionId}`);
+    await refreshPortions(productId);
+  },
 }));
+
+async function refreshPortions(productId: string) {
+  const { data } = await api.get<ProductPortion[]>(`/products/${productId}/portions`);
+  useProductStore.setState((s) => ({
+    products: s.products.map((p) => (p.id === productId ? { ...p, portions: data } : p)),
+  }));
+}
