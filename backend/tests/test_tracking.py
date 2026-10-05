@@ -29,6 +29,16 @@ async def _make_product(session, user, **macros) -> Product:
     return product
 
 
+def _snapshot(product: Product) -> dict:
+    """What the log router freezes on an entry at log time."""
+    return {
+        "name": product.name,
+        "brand": product.brand,
+        **{m: getattr(product, m) for m in ("calories", "protein", "fat", "carbs")},
+        "nutrients": None,
+    }
+
+
 def _entry(user, source_type, **fields) -> LogEntry:
     return LogEntry(
         id=uuid.uuid4(),
@@ -44,7 +54,7 @@ async def test_product_source_type_macros():
     async with TestSessionLocal() as session:
         user = await _make_user(session)
         product = await _make_product(session, user, calories=200, protein=10, fat=5, carbs=20)
-        entry = _entry(user, "product", product_id=product.id, quantity_grams=50)
+        entry = _entry(user, "product", product_id=product.id, quantity_grams=50, nutrition=_snapshot(product))
         session.add(entry)
         await session.flush()
 
@@ -78,8 +88,8 @@ async def test_meal_source_type_macros_sum_over_snapshot_ingredients():
         await session.flush()
         session.add_all(
             [
-                LogEntryMealIngredient(log_entry_id=entry.id, product_id=cheese.id, grams=50),
-                LogEntryMealIngredient(log_entry_id=entry.id, product_id=bread.id, grams=100),
+                LogEntryMealIngredient(log_entry_id=entry.id, product_id=cheese.id, grams=50, nutrition=_snapshot(cheese)),
+                LogEntryMealIngredient(log_entry_id=entry.id, product_id=bread.id, grams=100, nutrition=_snapshot(bread)),
             ]
         )
         await session.flush()

@@ -3,7 +3,7 @@ from typing import Sequence
 from app.models.meal_ingredient import MealIngredient
 from app.models.meal_portion import MealPortion
 
-MACROS = ("calories", "protein", "fat", "carbs", "fiber", "sugar", "salt")
+MACROS = ("calories", "protein", "fat", "carbs", "fiber", "sugar", "salt", "saturated_fat")
 
 
 def compute_reference_grams(ingredients: Sequence[MealIngredient], cooked_weight_grams: float | None) -> float:
@@ -40,11 +40,28 @@ def calculate_meal_nutrition(
         macro: sum(ingredient.grams / 100 * (getattr(ingredient, macro) or 0.0) for ingredient in ingredients)
         for macro in MACROS
     }
+    # Extended nutrients: sum only ingredients that know the value. A code is
+    # "partial" when at least one ingredient lacks it, so a total built from
+    # incomplete data isn't presented as complete (clients show "≥ x").
+    nutrient_totals: dict[str, float] = {}
+    partial: set[str] = set()
+    for ingredient in ingredients:
+        snapshot = ingredient.nutrients or {}
+        for code, amount in snapshot.items():
+            nutrient_totals[code] = nutrient_totals.get(code, 0.0) + ingredient.grams / 100 * amount
+    for ingredient in ingredients:
+        snapshot = ingredient.nutrients or {}
+        partial.update(code for code in nutrient_totals if code not in snapshot)
+    per_meal["nutrients"] = nutrient_totals
+    per_meal["nutrients_partial"] = sorted(partial)
     reference_grams = compute_reference_grams(ingredients, cooked_weight_grams)
-    per_100g = {
-        macro: (per_meal[macro] / reference_grams * 100 if reference_grams > 0 else 0.0) for macro in MACROS
-    }
-    portions_out = {
-        portion.id: {macro: per_100g[macro] * portion.grams / 100 for macro in MACROS} for portion in portions
-    }
+    def scale(source: dict, factor: float) -> dict:
+        out = {macro: source[macro] * factor for macro in MACROS}
+        out["nutrients"] = {code: amount * factor for code, amount in source["nutrients"].items()}
+        out["nutrients_partial"] = source["nutrients_partial"]
+        return out
+
+    per_100g_factor = 100 / reference_grams if reference_grams > 0 else 0.0
+    per_100g = scale(per_meal, per_100g_factor)
+    portions_out = {portion.id: scale(per_100g, portion.grams / 100) for portion in portions}
     return {"per_meal": per_meal, "per_100g": per_100g, "portions": portions_out}

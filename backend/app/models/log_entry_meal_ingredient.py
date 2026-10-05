@@ -1,7 +1,7 @@
 import uuid
 
 from sqlalchemy import ForeignKey, Numeric
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -26,3 +26,6 @@ class LogEntryMealIngredient(Base):
         UUID(as_uuid=True), ForeignKey("products.id", ondelete="SET NULL"), nullable=True, index=True
     )
     grams: Mapped[float] = mapped_column(Numeric, nullable=False)
+    # The ingredient's resolved per-100g values frozen at log time (see
+    # LogEntry.nutrition). Editing grams (overrides) never touches this.
+    nutrition: Mapped[dict | None] = mapped_column(JSONB, nullable=True)

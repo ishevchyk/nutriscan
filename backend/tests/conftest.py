@@ -9,6 +9,8 @@ from app.database import Base
 from app.dependencies import get_db
 from app.main import app
 from app.models.group import Group
+from app.models.nutrient import Nutrient
+from app.nutrient_catalog import NUTRIENT_SEED
 
 SYSTEM_GROUP_NAMES = [
     "Dairy",
@@ -42,6 +44,10 @@ async def _setup_schema():
     async with TestSessionLocal() as session:
         for name in SYSTEM_GROUP_NAMES:
             session.add(Group(id=uuid.uuid4(), user_id=None, name=name, is_system=True))
+        for i, (code, name, unit, category, parent, nrv) in enumerate(NUTRIENT_SEED):
+            session.add(
+                Nutrient(code=code, name=name, unit=unit, category=category, parent_code=parent, nrv=nrv, sort_order=i)
+            )
         await session.commit()
 
     app.dependency_overrides[get_db] = _override_get_db

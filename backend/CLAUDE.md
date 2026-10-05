@@ -11,7 +11,7 @@
 ## Schema (current + planned)
 Implemented: `users`, `products`, `refresh_tokens`, `groups`, `product_groups`, `meals`, `meal_ingredients`, `meal_portions` (full CRUD via `meals.py` router, including ingredients and portions sub-resources), `user_goals` (`goals.py`), `log_entries`, `log_entry_meal_ingredients` (`log.py` + `tracking.py`), `user_settings` (`settings.py`), `user_hidden_groups` (endpoints in `groups.py`), `user_profiles` (`profile.py`), `change-password`/`delete-account` (in `auth.py`).
 
-Not yet implemented (see README section 6 for full column definitions) — the rest of README Phase 5 ("Social Sign-In, Profile & Settings"), out of scope for the slices above:
+Not yet implemented (see README section 6 for full column definitions) — the rest of README Phase 5 ("Profile, Settings & Admin") and Phase 5b ("Social Sign-In"), out of scope for the slices above:
 - `users.role` / `users.disabled_at`, `user_auth_identities` (social sign-in — separately deferred, blocked on Apple Developer Program enrollment)
 - the full `/admin/*` router, avatar/photo upload (no image storage integration exists)
 
@@ -34,9 +34,11 @@ Not yet implemented (see README section 6 for full column definitions) — the r
 ## Tracking & Goals (Phase 4, backend implemented — UI still pending)
 - Endpoint groups: `/goals` (GET/PATCH — PATCH creates the row on first call), `/log` (CRUD + `/log/summary`)
 - `log_entry_meal_ingredients` is a snapshot taken at log time, not a live reference — editing grams there (e.g. ingredient overrides) never touches the meal's own `meal_ingredients`
+- Log entries freeze their own per-100g values at log time (`log_entries.nutrition` for product entries, `log_entry_meal_ingredients.nutrition` for meal ones); `app/tracking.py` never queries `Product`. Don't reintroduce a live product lookup — it would let product edits rewrite history and zero entries once a product is purged
+- Meal ingredients: a linked, unedited one (`uses_own_values = false`) follows the product; read ingredient values through `app/meal_ingredients.py::resolve_ingredients` (returns `ResolvedIngredient` dataclasses, never mutate the ORM row to fill them in). Before purging a followed product, `app/jobs.py` copies its values into the row
 - A log entry's macros are computed one of three ways depending on `source_type` (see README section 6, "Computing macros for a log entry"):
-  - `product` → `quantity_grams / 100 × product's per-100g macros`
-  - `meal` → sum over `log_entry_meal_ingredients`: `grams / 100 × each product's per-100g macros`
+  - `product` → `quantity_grams / 100 × the entry's frozen per-100g macros`
+  - `meal` → sum over `log_entry_meal_ingredients`: `grams / 100 × that row's frozen per-100g macros`
   - `manual` → use the `manual_*` fields directly
   - Kept in one shared place (`app/tracking.py`'s `calculate_log_entries_macros`), not duplicated per endpoint — both `GET /log` (per-entry) and `GET /log/summary` (daily totals) call it, batching DB lookups across a whole day's entries rather than querying per-entry
 - For `source_type = 'meal'`, `log_entries.quantity_grams` (the dish's logged weight -- portion.grams, a custom amount, or the meal's reference weight) is a *separate* field from `log_entry_meal_ingredients` (a raw-ingredient-equivalent breakdown that only drives the macro calc above). Once a meal has `cooked_weight_grams` set, summing that ingredients table's grams does **not** equal `quantity_grams` -- don't derive one from the other; `_build_meal_snapshot` in `log.py` returns both, computed independently, and `quantity_grams` is what the client should display/edit as "how much was logged"

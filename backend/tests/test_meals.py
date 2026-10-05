@@ -1,8 +1,10 @@
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 import pytest
-from sqlalchemy import delete
+from sqlalchemy import delete, update
 
+from app.jobs import RETENTION_DAYS, purge_expired_soft_deletes
 from app.models.product import Product
 from tests.conftest import TestSessionLocal
 
@@ -304,29 +306,34 @@ async def test_soft_delete_and_restore(client, auth_headers):
     assert all(r["id"] != meal["id"] for r in deleted_after.json())
 
 
-async def test_deleting_linked_product_unlinks_ingredient_but_keeps_snapshot(client, auth_headers):
+async def test_purging_followed_product_keeps_meal_nutrition(client, auth_headers):
     product = await _create_product(client, auth_headers, name="Soon Gone", calories=88)
     meal = await _create_meal(
         client, auth_headers, name="Survives Product Removal",
         ingredients=[{"product_id": product["id"], "input_amount": 100}],
     )
+    assert (await client.get(f"/meals/{meal['id']}", headers=auth_headers)).json()["ingredients"][0][
+        "uses_own_values"
+    ] is False
 
-    # Simulate what the 30-day purge job eventually does: hard-delete the
-    # product row. purge_expired_soft_deletes() itself is wired to the app's
-    # production session factory rather than the test DB (see app/jobs.py /
-    # app/database.py), so we exercise the FK behavior it relies on --
-    # ondelete="SET NULL" on meal_ingredients.product_id -- directly against
-    # the test DB instead of invoking that function here.
+    # Soft-delete, then age it past the retention window and run the real purge
+    # job against the test DB: it must copy the values into the ingredient
+    # before the product row (and so product_id, via ondelete="SET NULL") goes.
+    assert (await client.delete(f"/products/{product['id']}", headers=auth_headers)).status_code == 204
     async with TestSessionLocal() as db:
-        await db.execute(delete(Product).where(Product.id == UUID(product["id"])))
+        await db.execute(
+            update(Product)
+            .where(Product.id == UUID(product["id"]))
+            .values(deleted_at=datetime.now(timezone.utc) - timedelta(days=RETENTION_DAYS + 1))
+        )
         await db.commit()
+    await purge_expired_soft_deletes(session_factory=TestSessionLocal)
 
-    fetched = await client.get(f"/meals/{meal['id']}", headers=auth_headers)
-    assert fetched.status_code == 200
-    body = fetched.json()
+    body = (await client.get(f"/meals/{meal['id']}", headers=auth_headers)).json()
     ing = body["ingredients"][0]
     assert ing["product_id"] is None
     assert ing["is_linked"] is False
+    assert ing["uses_own_values"] is True
     assert ing["name"] == "Soon Gone"
     assert ing["calories"] == 88
     assert body["nutrition"]["per_meal"]["calories"] == pytest.approx(100 / 100 * 88)

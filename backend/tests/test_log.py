@@ -110,7 +110,7 @@ async def test_create_meal_log_entry_no_portion_uses_full_meal_grams(client, aut
     assert resp.status_code == 201
     entry = resp.json()
     assert entry["macros"]["calories"] == pytest.approx(400)  # 200g/100 * 200
-    assert entry["meal_ingredients"] == [{"product_id": product["id"], "grams": 200}]
+    assert entry["meal_ingredients"] == [{"product_id": product["id"], "grams": 200, "name": product["name"]}]
     # quantity_grams is the dish's logged weight (reference weight here, since
     # there's no cooked_weight_grams) -- separate from meal_ingredients, which is
     # only a raw-ingredient-equivalent breakdown for the macro calc.
@@ -138,7 +138,7 @@ async def test_create_meal_log_entry_with_portion_scales_grams(client, auth_head
     assert resp.status_code == 201
     entry = resp.json()
     # portion is half the meal's total grams (100 of 200) -> ingredient scales to 100g
-    assert entry["meal_ingredients"] == [{"product_id": product["id"], "grams": 100}]
+    assert entry["meal_ingredients"] == [{"product_id": product["id"], "grams": 100, "name": product["name"]}]
     assert entry["macros"]["calories"] == pytest.approx(200)  # 100g/100 * 200
     # quantity_grams is the portion's own weight, exactly -- not derived from
     # the (raw-ingredient-equivalent) meal_ingredients snapshot.
@@ -169,7 +169,7 @@ async def test_create_meal_log_entry_with_portion_scales_against_cooked_weight(c
     )
     assert resp.status_code == 201
     entry = resp.json()
-    assert entry["meal_ingredients"] == [{"product_id": product["id"], "grams": 100}]
+    assert entry["meal_ingredients"] == [{"product_id": product["id"], "grams": 100, "name": product["name"]}]
     assert entry["macros"]["calories"] == pytest.approx(200)  # 100g/100 * 200
     # The displayed logged amount is the portion's actual weight (50g of the
     # cooked dish) -- distinct from the 100g raw-ingredient-equivalent snapshot
@@ -241,7 +241,7 @@ async def test_create_meal_log_entry_with_ingredient_overrides(client, auth_head
         json={
             "source_type": "meal",
             "meal_id": meal["id"],
-            "ingredient_overrides": [{"product_id": cheese["id"], "grams": 50}],
+            "ingredient_overrides": [{"product_id": cheese["id"], "grams": 50, "name": cheese["name"]}],
             "meal_slot": "lunch",
             "logged_at": _logged_at(12),
         },
@@ -250,7 +250,7 @@ async def test_create_meal_log_entry_with_ingredient_overrides(client, auth_head
     assert resp.status_code == 201
     entry = resp.json()
     # overrides replace the snapshot entirely -- bread is dropped, not scaled
-    assert entry["meal_ingredients"] == [{"product_id": cheese["id"], "grams": 50}]
+    assert entry["meal_ingredients"] == [{"product_id": cheese["id"], "grams": 50, "name": cheese["name"]}]
     assert entry["macros"]["calories"] == pytest.approx(50 / 100 * 400)
 
 
