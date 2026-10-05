@@ -23,6 +23,7 @@ class Product(Base):
     fiber: Mapped[float | None] = mapped_column(Float, nullable=True)
     sugar: Mapped[float | None] = mapped_column(Float, nullable=True)
     salt: Mapped[float | None] = mapped_column(Float, nullable=True)
+    saturated_fat: Mapped[float | None] = mapped_column(Float, nullable=True)
     source: Mapped[str | None] = mapped_column(String(20), nullable=True, server_default=text("'manual'"))
     serving_size: Mapped[float | None] = mapped_column(Float, nullable=True)
     serving_unit: Mapped[str | None] = mapped_column(String(50), nullable=True)

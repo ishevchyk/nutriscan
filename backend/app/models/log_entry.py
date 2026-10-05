@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import DateTime, ForeignKey, Numeric, String, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -39,6 +39,11 @@ class LogEntry(Base):
     portion_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("meal_portions.id", ondelete="SET NULL"), nullable=True
     )
+    # source_type='product': the product's per-100g values frozen at log time
+    # (name, brand, calories..., nutrients), so later product edits or a purge
+    # never change what was logged. NULL = unknown (e.g. product already purged
+    # when this column was introduced) and contributes zero.
+    nutrition: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     manual_calories: Mapped[float | None] = mapped_column(Numeric, nullable=True)
     manual_protein: Mapped[float | None] = mapped_column(Numeric, nullable=True)
     manual_fat: Mapped[float | None] = mapped_column(Numeric, nullable=True)

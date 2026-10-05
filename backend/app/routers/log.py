@@ -28,7 +28,9 @@ from app.schemas.log import (
     LogMacrosOut,
     LogSummaryOut,
 )
+from app.meal_ingredients import ResolvedIngredient, resolve_ingredients
 from app.nutrition import compute_reference_grams
+from app.product_snapshot import load_product_nutrition
 from app.tracking import LOG_MACROS, calculate_log_entries_macros
 from app.user_settings import get_user_timezone
 
@@ -68,7 +70,7 @@ async def _get_owned_product(db: AsyncSession, product_id: UUID, current_user: U
 
 async def _get_owned_meal_with_ingredients(
     db: AsyncSession, meal_id: UUID, current_user: User
-) -> tuple[Meal, list[MealIngredient]]:
+) -> tuple[Meal, list[ResolvedIngredient]]:
     result = await db.execute(
         select(Meal).where(Meal.id == meal_id, Meal.user_id == current_user.id, Meal.deleted_at.is_(None))
     )
@@ -76,22 +78,26 @@ async def _get_owned_meal_with_ingredients(
     if not meal:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="meal_id is invalid")
     ingredients_result = await db.execute(select(MealIngredient).where(MealIngredient.meal_id == meal_id))
-    return meal, list(ingredients_result.scalars().all())
+    # Resolved so each ingredient carries its effective values (the product's
+    # current ones for an unedited linked ingredient) for the snapshot below.
+    return meal, await resolve_ingredients(db, list(ingredients_result.scalars().all()))
 
 
 async def _build_meal_snapshot(
     db: AsyncSession,
     meal: Meal,
-    ingredients: list[MealIngredient],
+    ingredients: list[ResolvedIngredient],
     portion_id: UUID | None,
     ingredient_overrides: list[IngredientOverride] | None,
     quantity_grams: float | None,
 ) -> tuple[list[dict], float]:
-    """Returns ([{product_id, grams}, ...], logged_grams).
+    """Returns ([{product_id, grams, nutrition}, ...], logged_grams).
 
     The snapshot list is persisted as log_entry_meal_ingredients and is a
     raw-ingredient-equivalent breakdown -- it exists only so macros can be
-    computed per ingredient (README §6). It is NOT the weight of the dish
+    computed per ingredient (README §6). `nutrition` freezes each ingredient's
+    per-100g values at log time, so later product/meal edits never change the
+    logged entry. It is NOT the weight of the dish
     that was logged: once the meal has a cooked_weight_grams, summing it
     diverges from that on purpose (see nutrition.py's compute_reference_grams
     docstring). logged_grams is that separate, human-meaningful weight,
@@ -129,7 +135,15 @@ async def _build_meal_snapshot(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="ingredient_overrides reference products not in this meal",
             )
-        snapshot = [{"product_id": o.product_id, "grams": o.grams} for o in ingredient_overrides]
+        by_product = {ing.product_id: ing for ing in ingredients}
+        snapshot = [
+            {
+                "product_id": o.product_id,
+                "grams": o.grams,
+                "nutrition": by_product[o.product_id].nutrition_snapshot(),
+            }
+            for o in ingredient_overrides
+        ]
         logged_grams = quantity_grams if quantity_grams is not None else sum(o.grams for o in ingredient_overrides)
         return snapshot, logged_grams
 
@@ -145,11 +159,17 @@ async def _build_meal_snapshot(
         # different weight when logged than what the meal detail screen shows for it.
         reference_grams = compute_reference_grams(ingredients, meal.cooked_weight_grams)
         scale = (portion.grams / reference_grams) if reference_grams > 0 else 0.0
-        snapshot = [{"product_id": ing.product_id, "grams": ing.grams * scale} for ing in ingredients]
+        snapshot = [
+            {"product_id": ing.product_id, "grams": ing.grams * scale, "nutrition": ing.nutrition_snapshot()}
+            for ing in ingredients
+        ]
         logged_grams = quantity_grams if quantity_grams is not None else portion.grams
         return snapshot, logged_grams
 
-    snapshot = [{"product_id": ing.product_id, "grams": ing.grams} for ing in ingredients]
+    snapshot = [
+        {"product_id": ing.product_id, "grams": ing.grams, "nutrition": ing.nutrition_snapshot()}
+        for ing in ingredients
+    ]
     logged_grams = (
         quantity_grams if quantity_grams is not None else compute_reference_grams(ingredients, meal.cooked_weight_grams)
     )
@@ -180,6 +200,7 @@ def _serialize_entry(
         meal_slot=entry.meal_slot,
         source_type=entry.source_type,
         product_id=entry.product_id,
+        name=(entry.nutrition or {}).get("name") if entry.source_type == "product" else None,
         quantity_grams=entry.quantity_grams,
         meal_id=entry.meal_id,
         portion_id=entry.portion_id,
@@ -190,7 +211,12 @@ def _serialize_entry(
         created_at=entry.created_at,
         macros=LogMacrosOut(**macros),
         meal_ingredients=(
-            [LogEntryMealIngredientOut(product_id=r.product_id, grams=r.grams) for r in meal_ingredients]
+            [
+                LogEntryMealIngredientOut(
+                    product_id=r.product_id, grams=r.grams, name=(r.nutrition or {}).get("name")
+                )
+                for r in meal_ingredients
+            ]
             if meal_ingredients is not None
             else None
         ),
@@ -244,6 +270,7 @@ async def create_log_entry(
 ):
     if isinstance(body, LogEntryProductCreate):
         await _get_owned_product(db, body.product_id, current_user)
+        nutrition = (await load_product_nutrition(db, [body.product_id]))[body.product_id]
         entry = LogEntry(
             user_id=current_user.id,
             logged_at=body.logged_at,
@@ -251,6 +278,7 @@ async def create_log_entry(
             source_type="product",
             product_id=body.product_id,
             quantity_grams=body.quantity_grams,
+            nutrition=nutrition,
         )
         db.add(entry)
         await db.flush()

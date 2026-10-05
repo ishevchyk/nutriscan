@@ -12,6 +12,7 @@ from app.models.meal import Meal
 from app.models.meal_ingredient import MealIngredient
 from app.models.meal_portion import MealPortion
 from app.models.user import User
+from app.meal_ingredients import ResolvedIngredient, copy_values_to_row, resolve_ingredients
 from app.nutrition import MACROS, calculate_meal_nutrition
 from app.schemas.meal import (
     MealCreate,
@@ -82,8 +83,9 @@ async def _attach_ingredients(db: AsyncSession, meals: list[Meal]) -> None:
         return
     meal_ids = [m.id for m in meals]
     result = await db.execute(select(MealIngredient).where(MealIngredient.meal_id.in_(meal_ids)))
-    by_meal: dict[UUID, list[MealIngredient]] = {mid: [] for mid in meal_ids}
-    for ingredient in result.scalars().all():
+    resolved = await resolve_ingredients(db, result.scalars().all())
+    by_meal: dict[UUID, list[ResolvedIngredient]] = {mid: [] for mid in meal_ids}
+    for ingredient in resolved:
         by_meal[ingredient.meal_id].append(ingredient)
     for meal in meals:
         meal.ingredients = by_meal.get(meal.id, [])
@@ -118,10 +120,12 @@ async def _build_meal_detail(db: AsyncSession, meal: Meal) -> Meal:
 async def _resolve_ingredient_snapshot(
     db: AsyncSession, item: MealIngredientIn, current_user: User
 ) -> dict:
-    """Linked ingredients (product_id set) always take their snapshot from the
-    product's current values -- any name/brand/macro fields also sent on `item`
-    are ignored, product data is authoritative. Unlinked ingredients use the
-    submitted fields directly (name is guaranteed present by the schema)."""
+    """Linked ingredients (product_id set) are created following the product:
+    only the link and a fallback name/brand are stored, no values -- any
+    name/brand/macro fields also sent on `item` are ignored, product data is
+    authoritative (see app/meal_ingredients.py). Unlinked ingredients keep the
+    submitted fields as their own values (name is guaranteed present by the
+    schema)."""
     if item.product_id is not None:
         result = await db.execute(
             select(Product).where(
@@ -137,13 +141,15 @@ async def _resolve_ingredient_snapshot(
             "product_id": product.id,
             "name": product.name,
             "brand": product.brand,
-            **{macro: getattr(product, macro) for macro in MACROS},
+            "uses_own_values": False,
         }
     return {
         "product_id": None,
         "name": item.name,
         "brand": item.brand,
         **{macro: getattr(item, macro) for macro in MACROS},
+        "nutrients": item.nutrients or None,
+        "uses_own_values": True,
     }
 
 
@@ -363,7 +369,7 @@ async def add_ingredient(
     db.add(ingredient)
     await db.commit()
     await db.refresh(ingredient)
-    return ingredient
+    return (await resolve_ingredients(db, [ingredient]))[0]
 
 
 @router.patch("/{meal_id}/ingredients/{ingredient_id}", response_model=MealIngredientOut)
@@ -374,14 +380,20 @@ async def update_ingredient(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Relink (product_id set to a new product -> snapshot resyncs from it),
-    unlink (product_id explicitly set to null -> snapshot preserved as-is), or
-    edit the snapshot fields directly (no product_id key in the body at all).
+    """Relink (product_id set -> the ingredient follows that product again,
+    dropping any own values; sending the same product resets an edited
+    ingredient), unlink (product_id explicitly null -> the product's current
+    values are copied into the row first, so no numbers are lost), or edit
+    values directly (no product_id key). Editing values on an ingredient that
+    follows a product first copies the product's current values into the row,
+    so a partial edit doesn't blank the fields that weren't sent, and the
+    ingredient keeps its own values from then on.
     Sending input_amount and/or input_unit re-derives grams from whichever of
     the two didn't change (via _resolve_ingredient_grams); grams sent alone,
     with neither of those keys present, is still a direct manual override."""
     ingredient = await _get_owned_ingredient(db, meal_id, ingredient_id, current_user)
     updates = body.model_dump(exclude_unset=True)
+    value_keys = {"name", "brand", "nutrients", *MACROS}
 
     if "product_id" in updates:
         product_id = updates.pop("product_id")
@@ -400,11 +412,18 @@ async def update_ingredient(
             ingredient.name = product.name
             ingredient.brand = product.brand
             for macro in MACROS:
-                setattr(ingredient, macro, getattr(product, macro))
-            for key in ("name", "brand", *MACROS):
+                setattr(ingredient, macro, None)
+            ingredient.nutrients = None
+            ingredient.uses_own_values = False
+            for key in value_keys:
                 updates.pop(key, None)
         else:
+            if ingredient.product_id is not None and not ingredient.uses_own_values:
+                copy_values_to_row(ingredient, (await resolve_ingredients(db, [ingredient]))[0])
             ingredient.product_id = None
+
+    if updates.keys() & value_keys and ingredient.product_id is not None and not ingredient.uses_own_values:
+        copy_values_to_row(ingredient, (await resolve_ingredients(db, [ingredient]))[0])
 
     if "input_amount" in updates or "input_unit" in updates:
         input_amount = updates.pop("input_amount", ingredient.input_amount)
@@ -424,7 +443,7 @@ async def update_ingredient(
 
     await db.commit()
     await db.refresh(ingredient)
-    return ingredient
+    return (await resolve_ingredients(db, [ingredient]))[0]
 
 
 @router.delete("/{meal_id}/ingredients/{ingredient_id}", status_code=status.HTTP_204_NO_CONTENT)

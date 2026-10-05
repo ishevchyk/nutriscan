@@ -6,6 +6,8 @@ from app.models.product_group import ProductGroup
 from app.models.meal import Meal
 from app.models.meal_ingredient import MealIngredient
 from app.models.meal_portion import MealPortion
+from app.models.nutrient import Nutrient, ProductNutrient
+from app.models.product_portion import ProductPortion
 from app.models.product_unit_conversions import ProductUnitConversion
 from app.models.user_goal import UserGoal
 from app.models.log_entry import LogEntry
@@ -22,6 +24,9 @@ __all__ = [
     "Meal",
     "MealIngredient",
     "MealPortion",
+    "Nutrient",
+    "ProductNutrient",
+    "ProductPortion",
     "ProductUnitConversion",
     "UserGoal",
     "LogEntry",

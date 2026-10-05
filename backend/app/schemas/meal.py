@@ -30,6 +30,8 @@ class MealIngredientIn(BaseModel):
     fiber: float | None = None
     sugar: float | None = None
     salt: float | None = None
+    saturated_fat: float | None = None
+    nutrients: dict[str, float] | None = None
 
     @field_validator("input_amount")
     @classmethod
@@ -65,6 +67,11 @@ class MealIngredientOut(BaseModel):
     fiber: float | None
     sugar: float | None
     salt: float | None
+    saturated_fat: float | None
+    nutrients: dict[str, float] | None
+    # False = follows the linked product's current values; True = unlinked, or
+    # a linked ingredient the user edited (relink to the same product resets it).
+    uses_own_values: bool
 
     model_config = {"from_attributes": True}
 
@@ -95,6 +102,8 @@ class MealIngredientPatch(BaseModel):
     fiber: float | None = None
     sugar: float | None = None
     salt: float | None = None
+    saturated_fat: float | None = None
+    nutrients: dict[str, float] | None = None
 
     @field_validator("input_amount")
     @classmethod
@@ -155,6 +164,10 @@ class NutritionOut(BaseModel):
     fiber: float
     sugar: float
     salt: float
+    saturated_fat: float
+    nutrients: dict[str, float] = {}
+    # Codes whose total only covers some ingredients (others have no value).
+    nutrients_partial: list[str] = []
 
 
 class MealNutritionOut(BaseModel):

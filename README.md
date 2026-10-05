@@ -45,7 +45,7 @@ NutriScan is a personal nutrition tracking app that lets users build a library o
 | Deletion model | Soft delete — 30-day recovery window (Recently Deleted), then hard delete via background job |
 | Social / sharing | TBD — personal-only for now, revisit later |
 | Calorie/macro goals | Single active goal set per user (calories, protein, fat, carbs), user-entered and editable at any time from Profile → Daily goals (the Log page links there) — no goal calculator yet, may add later |
-| Meal ingredients | Each ingredient stores its own nutrition snapshot (name, brand, macros) and *optionally* links to a saved product — a meal never requires every ingredient to exist in the Product Library |
+| Meal ingredients | An ingredient *optionally* links to a saved product. A linked, unedited ingredient **follows** the product (name and nutrition are read from it, so fixing a product fixes every meal using it); an unlinked or hand-edited one keeps its own values — a meal never requires every ingredient to exist in the Product Library |
 | Linked product deletion | If a linked product is hard-purged, the ingredient's `product_id` is set to `null` (not cascade-deleted) — the ingredient keeps its last-known name/macros, nothing in the meal silently disappears |
 | Ingredient units | Users can enter ingredients in household units (tbsp, tsp, cup, piece, etc.), converted to grams via a per-product `grams_per_unit` factor — conversion is ingredient-specific (a tbsp of sugar ≠ a tbsp of oil), never a single global factor |
 | Display units (metric/imperial) | All data is stored and calculated in metric (grams) always; oz/lb display is a client-side formatting layer driven by `user_settings.units`, not a backend concern |
@@ -100,7 +100,7 @@ NutriScan is a personal nutrition tracking app that lets users build a library o
 ### 3.5 Meals & Nutrition
 - Build meals by adding ingredients - each ingredient either links to a saved product from the library, or is entered directly with its own name/brand/macros (no library entry required). Most users will have far more meals than saved products, so this is the common case, not an edge case.
 - Ingredient rows show whether they're linked to a saved product (checkmark) or not (neutral "not saved" state — never treated as an error)
-- Linked ingredients can be re-linked/swapped to a different product at any time (e.g. 72% butter → 82% butter, or one manufacturer's cottage cheese → another's); swapping refreshes that ingredient's macro snapshot and the meal's nutrition recalculates
+- Linked ingredients can be re-linked/swapped to a different product at any time (e.g. 72% butter → 82% butter, or one manufacturer's cottage cheese → another's); swapping makes the ingredient follow the new product (dropping any own values) and the meal's nutrition recalcsulates
 - Unlinked ingredients can be promoted to a saved product ("Add to Product Library") straight from their existing snapshot data
 - Editing an ingredient's name/brand/macros directly is always available, independent of link state, and never changes or clears the product link
 - Ingredient quantity can be entered in grams directly, or in a household unit (tbsp, tsp, cup, piece, etc.) — household units convert to grams via a per-product conversion factor, since the same unit weighs differently per ingredient (a tbsp of sugar isn't a tbsp of oil). If a product has no saved conversion factor for the chosen unit yet, the user is prompted to enter one once; it's then reused everywhere that product is used with that unit.
@@ -148,11 +148,27 @@ NutriScan is a personal nutrition tracking app that lets users build a library o
 - Proposed actions (final scope pending, see Open Questions #11):
     - **Manage system groups** - create and rename the built-in groups every user sees (today that's only possible via seed data). Deleting a system group is deliberately left out: it would silently strip group membership from every user's products.
     - **User management** - searchable user list (email, sign-up date, sign-in methods, role, status); disable / re-enable an account (blocks every sign-in method and token refresh, data untouched); promote / demote admins.
-    - **App stats** - read-only counts: total users, recent sign-ups, products, meals, log entries. AI scan/chat usage can be added once Phase 7 ships.
+    - **App stats** - read-only counts: total users, recent sign-ups, products, meals, log entries. AI scan/chat usage can be added once Phase 6 ships.
 - Guardrails:
     - An admin can't disable or demote themselves, and the last remaining admin can't be demoted.
     - Admin tools cover app-wide config and account status only — they never read or edit another user's products, meals, goals, or log (see Open Questions #12).
     - The first admin is created out of band via a CLI command, never through an endpoint.
+
+### 3.9 Product Portions *(planned — see Phase 8)*
+- Products get any number of named portions, mirroring meal portions (§3.5): e.g. "1 bar" = 52 g, "1 cup" = 250 g, with one optionally marked default
+- Logging a product (§3.6) can pick a portion and a count ("2 × 1 bar") instead of typing grams; `log_entries.quantity_grams` still stores the resulting grams, so macro calculation is unchanged
+- The existing, currently unused `products.serving_size` / `serving_unit` columns become each product's default portion when migrated
+- Portions found via Open Food Facts (§3.10, `serving_quantity`) pre-fill a default portion on import
+- Distinct from `product_unit_conversions`: a conversion turns a household *unit* into grams for meal ingredients; a portion is a named, ready-to-log amount of that product
+
+### 3.10 Public Product Catalog — Open Food Facts *(planned — see Phase 8)*
+- Search a public catalog and import a product instead of typing it in. Source: [Open Food Facts](https://world.openfoodfacts.org) (OFF) — free, crowd-sourced, strong EU/Ukrainian coverage, barcode-keyed, per-100g nutriments
+- **Import = copy.** A catalog hit is copied into the user's own library (`source = 'catalog'`, keeping the barcode as the reference), like the meal-ingredient snapshot pattern. After import it's an ordinary product the user owns and edits — the core value "your real-world food data" holds
+- **Scanning order (Phase 6):** barcode scan → OFF lookup first → Claude Vision only when OFF has no match or the user is shooting a nutrition label. Cheaper and more accurate than vision on every scan
+- **All OFF traffic goes through the backend**, never from the client. OFF limits reads to 15 req/min and search to 10 req/min *per IP*, and every user would share the server's IP, so the backend caches lookups (by barcode); at scale, import OFF's data export into Postgres and search locally
+- OFF requires a custom User-Agent (`NutriScan/<version> (<contact email>)`); test against its staging server first
+- **Sharing user-created products** (Open Questions #19): preferred option is an opt-in "Share to Open Food Facts" on barcoded products, using OFF's write API — OFF handles moderation, duplicates and vandalism. A NutriScan-run public catalog would need moderation tooling that doesn't exist yet
+- **Licensing:** OFF data is ODbL (contents under the Database Contents License; images CC BY-SA). The app must credit "Data from Open Food Facts", and a redistributed database derived from it must stay ODbL
 
 ---
 
@@ -285,14 +301,23 @@ carbs         NUMERIC        -- per 100g
 fiber         NUMERIC        -- per 100g
 sugar         NUMERIC        -- per 100g
 salt          NUMERIC        -- per 100g
+saturated_fat NUMERIC        -- per 100g (EU-mandatory, so a typed column)
 notes         TEXT
-source        TEXT           -- 'manual' | 'ai_scan' | 'ai_chat'
+source        TEXT           -- 'manual' | 'ai_scan' | 'ai_chat' | 'catalog'
 is_favorite   BOOLEAN NOT NULL DEFAULT false
 created_at    TIMESTAMPTZ DEFAULT now()
 updated_at    TIMESTAMPTZ DEFAULT now()
 deleted_at    TIMESTAMPTZ    -- soft delete, powers Recently Deleted
 ```
 Product responses also carry two derived, read-only fields computed from the log (not stored): `last_logged_at` and `log_count` — every log entry that references the product directly (`source_type = 'product'`) or through `log_entry_meal_ingredients`, counted once per entry.
+
+Every other nutrient (mono/polyunsaturates, trans fat, polyols, starch, cholesterol, vitamins, minerals) lives in a seeded reference table plus a per-product value table, so a new nutrient never needs a migration:
+```sql
+nutrients         (code PK = Open Food Facts key, name, unit 'g'|'mg'|'µg', category, parent_code, nrv, sort_order)
+product_nutrients (product_id FK ON DELETE CASCADE, nutrient_code FK, amount) -- per 100g, in the nutrient's own unit; PK (product_id, nutrient_code)
+product_portions  (id, product_id FK ON DELETE CASCADE, name, grams, is_default, created_at) -- at most one default per product (partial unique index)
+```
+Null/missing means unknown, never 0. `meal_ingredients` snapshots `saturated_fat` plus a `nutrients` JSONB map. Product responses include `nutrients: {code: amount}` and `portions[]`. Seed list: `backend/app/nutrient_catalog.py`.
 
 ### groups
 ```sql
@@ -364,9 +389,9 @@ Note: the old single `portion_grams` field is replaced by `meal_portions` below,
 id            UUID PRIMARY KEY
 meal_id       UUID REFERENCES meals(id)
 product_id    UUID REFERENCES products(id) ON DELETE SET NULL   -- optional link; null = unlinked
-name          TEXT NOT NULL       -- snapshot, e.g. "President butter 82%"
+name          TEXT NOT NULL       -- own value, or a fallback while following a product (e.g. "President butter 82%")
 brand         TEXT
-calories      NUMERIC NOT NULL    -- per 100g, snapshot
+calories      NUMERIC NOT NULL    -- per 100g, own value (ignored while following a product)
 protein       NUMERIC NOT NULL
 fat           NUMERIC NOT NULL
 carbs         NUMERIC NOT NULL
@@ -376,8 +401,9 @@ salt          NUMERIC
 input_amount  NUMERIC NOT NULL    -- raw quantity as entered, e.g. 3
 input_unit    TEXT NOT NULL       -- 'g' | 'tbsp' | 'tsp' | 'cup' | 'ml' | 'piece' | ...
 grams         NUMERIC NOT NULL    -- computed weight actually used in nutrition calc
+uses_own_values BOOLEAN NOT NULL DEFAULT true   -- false = linked and following the product
 ```
-Nutrition fields are a snapshot copied from the linked product at add/relink time (or entered manually if unlinked) — not a live reference. This is what makes an ingredient resolvable even if its linked product is later deleted/purged (see `product_id` FK behavior above), and what allows a linked ingredient's values to be hand-edited without affecting the product itself.
+A linked ingredient with `uses_own_values = false` stores no values of its own: name, brand and nutrition are resolved from the product at calculation time (`backend/app/meal_ingredients.py`; soft-deleted products still resolve). Editing values on it copies the product's current values into the row first (so a partial edit doesn't blank the rest) and flips `uses_own_values` to true; relinking to the same product resets it. Unlinking copies the current values first, so no numbers are lost. Before the 30-day purge hard-deletes a followed product, the job copies its values into the ingredient, so a purge never changes a meal.
 
 `grams` is always the value the nutrition calc function reads — `input_amount`/`input_unit` are kept only so the UI can display and edit the original entry (e.g. "3 tbsp") instead of a raw gram number. When `input_unit != 'g'`, `grams` is computed via `product_unit_conversions` below at entry/edit time, not recomputed on every read.
 
@@ -422,6 +448,7 @@ logged_at         TIMESTAMPTZ NOT NULL   -- date+time the food was consumed
 meal_slot         TEXT NOT NULL          -- 'breakfast' | 'lunch' | 'dinner' | 'snack'
 source_type       TEXT NOT NULL          -- 'product' | 'meal' | 'manual'
 product_id        UUID REFERENCES products(id)         -- set if source_type = 'product'
+nutrition         JSONB                                 -- product's per-100g values frozen at log time (name, brand, macros, nutrients)
 quantity_grams    NUMERIC                               -- set if source_type = 'product' or 'meal' (see below)
 meal_id           UUID REFERENCES meals(id)             -- set if source_type = 'meal'
 portion_id        UUID REFERENCES meal_portions(id)     -- optional, if a named portion was selected
@@ -441,14 +468,17 @@ id            UUID PRIMARY KEY
 log_entry_id  UUID REFERENCES log_entries(id)
 product_id    UUID REFERENCES products(id)
 grams         NUMERIC NOT NULL   -- defaults to meal_ingredients.grams at time of logging, editable
+nutrition     JSONB              -- the ingredient's resolved per-100g values frozen at log time
 ```
 Only populated when `log_entries.source_type = 'meal'`. This is a snapshot, not a live reference — editing grams here (e.g. "used 50g cheese not 70g") only affects this one logged entry, never the meal itself.
 
 `grams` here is a **raw-ingredient-equivalent** breakdown, not the weight of the dish that was logged — it exists only to drive the per-ingredient macro calc below. When the meal has a `cooked_weight_grams`, a named portion's ingredients are scaled against that (§3.5), so summing this table's `grams` no longer equals the portion's own weight; use `log_entries.quantity_grams` for the displayed/loggable amount instead.
 
 ### Computing macros for a log entry
-- `source_type = 'product'` → `quantity_grams / 100 × product's per-100g macros`
-- `source_type = 'meal'` → sum over `log_entry_meal_ingredients`: `grams / 100 × each product's per-100g macros` (uses that table's raw-equivalent grams, not `log_entries.quantity_grams`)
+- `source_type = 'product'` → `quantity_grams / 100 × the entry's frozen per-100g macros` (`log_entries.nutrition`)
+- `source_type = 'meal'` → sum over `log_entry_meal_ingredients`: `grams / 100 × that row's frozen per-100g macros` (`nutrition`; uses that table's raw-equivalent grams, not `log_entries.quantity_grams`)
+
+Values are frozen when the entry is logged, so editing a product (or a meal) later never changes past days, and purging a product never zeroes them. A `NULL` snapshot (only entries whose product was already purged before this existed) contributes zero.
 - `source_type = 'manual'` → use `manual_*` fields directly
 
 ### Soft deletes & recovery
@@ -492,6 +522,12 @@ POST   /products/:id/restore Restore a recently-deleted product
 
 GET    /products/:id/unit-conversions        List saved unit conversions for a product
 POST   /products/:id/unit-conversions        Save a conversion (unit, grams_per_unit) — upsert on (product_id, unit)
+
+GET    /products/:id/portions                List named portions
+POST   /products/:id/portions                Create a portion (name, grams, is_default)
+PATCH  /products/:id/portions/:id            Update a portion (setting is_default clears the previous default)
+DELETE /products/:id/portions/:id            Delete a portion
+GET    /nutrients                            Reference table (labels, units, NRVs) for extended nutrients; cacheable
 ```
 
 ### Groups
@@ -519,8 +555,8 @@ PATCH  /meals/:id/portions/:id   Update a named portion (name, grams, is_default
 DELETE /meals/:id/portions/:id   Delete a named portion
 
 POST   /meals/:id/ingredients                  Add an ingredient (linked: {product_id, input_amount, input_unit} or unlinked: {name, brand, macros, input_amount, input_unit})
-PATCH  /meals/:id/ingredients/:id              Edit snapshot values directly (name/brand/macros/grams) — does not change product_id
-PATCH  /meals/:id/ingredients/:id/relink       Swap the linked product (or link an unlinked ingredient) — refreshes the snapshot from the target product
+PATCH  /meals/:id/ingredients/:id              Edit values directly (name/brand/macros/grams) — on a followed ingredient this switches it to its own values; sending `product_id` (same or different product) makes it follow that product again
+PATCH  /meals/:id/ingredients/:id/relink       Swap the linked product (or link an unlinked ingredient) — the ingredient then follows the target product
 POST   /meals/:id/ingredients/:id/promote      Create a product from this ingredient's snapshot and link it (unlinked → linked)
 DELETE /meals/:id/ingredients/:id              Remove an ingredient from the meal
 ```
@@ -694,7 +730,7 @@ Disabled account (users.disabled_at set)
 
 ## 10. Build Phases
 
-### Phase 1 — Foundation
+### Phase 1 — Foundation  *(✅ shipped)*
 - [x] FastAPI project setup (folder structure, config, error handling)
 - [x] PostgreSQL schema + Alembic migrations
 - [x] Auth endpoints (register, login, refresh, logout)
@@ -704,7 +740,7 @@ Disabled account (users.disabled_at set)
 - [x] Background job: hard-delete rows with `deleted_at` older than 30 days
 - [x] Zustand store wired to API
 
-### Phase 2 — Product Groups
+### Phase 2 — Product Groups  *(✅ shipped)*
 - [x] `groups` and `product_groups` tables + migrations
 - [x] Seed built-in system groups (Dairy, Fruits, Breakfast, Snacks, etc.)
 - [x] Group CRUD endpoints (custom groups only)
@@ -712,7 +748,7 @@ Disabled account (users.disabled_at set)
 - [x] Product list UI: group badges + per-group filter view
 - [x] Custom group management UI (create, rename, delete)
 
-### Phase 3 — Meals
+### Phase 3 — Meals  *(✅ shipped)*
 - [x] Meal CRUD endpoints
 - [x] `meal_ingredients` table as a self-contained snapshot (name/brand/macros) with optional `product_id` (`ON DELETE SET NULL`)
 - [x] `product_unit_conversions` table (per-product, per-unit `grams_per_unit`) — `GET`/`POST /products/:id/unit-conversions` (upsert) built
@@ -724,7 +760,17 @@ Disabled account (users.disabled_at set)
 - [x] Meal detail UI: per-100g, per-meal, and per-portion nutrition views + portion management
 - [x] Meal list + detail screens
 
-### Phase 4 — Tracking & Goals
+### Phase 3b — Recipes → Meals Rename  *(✅ shipped)*
+- [x] Alembic migration: rename `recipes`→`meals`, `recipe_ingredients`→`meal_ingredients`, `recipe_portions`→`meal_portions` (`backend/alembic/versions/0008_rename_recipes_to_meals.py`)
+- [ ] `log_entries.recipe_id`→`meal_id`, `log_entries.meal_type`→`meal_slot`, `log_entry_recipe_ingredients`→`log_entry_meal_ingredients`, `source_type` value `'recipe'`→`'meal'` — N/A for now: `log_entries` doesn't exist yet (unbuilt Phase 4/5 feature). Build it directly with `meal_id`/`meal_slot`/`log_entry_meal_ingredients` naming when it lands; no separate rename needed.
+- [x] Backend: rename SQLAlchemy models, Pydantic schemas, and router paths (`/recipes/*` → `/meals/*`)
+- [ ] Backend: update `POST /log` request/response handling for `meal_id` and `meal_slot` — N/A for now, `/log` doesn't exist yet (see above)
+- [x] Backend tests: update fixtures and assertions referencing recipe/meal_type naming
+- [x] Frontend (mobile): rename Zustand store, components, types, and routes (`useRecipeStore`→`useMealStore`, `/recipes`→`/meals`, etc.). Web has no code yet (`web/src` doesn't exist) — `web/CLAUDE.md`'s planned filenames/store updated to match.
+- [x] UI copy sweep: "Recipe" → "Meal" in nav labels, screen titles, buttons, empty states
+- [x] Final grep sweep across repo for stray `recipe`/`Recipe`/`RECIPE` occurrences (seed data, error messages, comments)
+
+### Phase 4 — Tracking & Goals  *(✅ shipped)*
 - [x] `user_goals` table + `GET`/`PATCH /goals` endpoints
 - Goal setting UI → moved to Phase 5 (Profile → Daily goals)
 - [x] `log_entries` + `log_entry_meal_ingredients` tables + migrations
@@ -734,26 +780,15 @@ Disabled account (users.disabled_at set)
 - [x] Meal-logging flow: editable per-ingredient grams with live macro recalculation before saving
 - [x] Daily summary UI: totals vs. goals per macro (progress bars/rings)
 
-### Phase 5 — Social Sign-In, Profile & Settings
+### Phase 4b — Products screen: filters, sort, favourites  *(✅ shipped)*
+- [x] `products.is_favorite` + migration 0013; `PATCH /products/:id` accepts it
+- [x] Derived `last_logged_at` / `log_count` on every product response
+- [x] Filters sheet (groups match-any, brands, nutrition presets, max kcal), Sort sheet, favourites pill + heart on cards
+- [x] Group filtering moved client-side — the product store always holds the full library
 
-**Social sign-in — deferred, later TODO.** Blocked on enrolling in the Apple Developer Program (needed for any signed iOS build, not just Apple Sign-In specifically — `@react-native-google-signin/google-signin` also requires a signed dev build). The rest of Phase 5 has no dependency on social sign-in and ships first; only the Profile screen's Account → sign-in methods row (connect/disconnect Google & Apple) waits on it. Revisit the three checklists below once enrolled — Android could unblock Google sign-in sooner if that's wanted before Apple lands.
+### Phase 5 — Profile, Settings & Admin  *(🚧 in progress — Admin and a few small items left)*
 
-**Social sign-in — setup** *(later TODO — blocked on Apple Developer Program enrollment)*
-- [ ] Google Cloud OAuth client IDs (iOS, Android, web); Apple Services ID, key, and Sign in with Apple capability; secrets in env config
-- [ ] Move mobile to an Expo development build (native sign-in modules don't run in Expo Go)
-
-**Social sign-in — backend** *(later TODO — blocked on Apple Developer Program enrollment)*
-- [ ] Migration: `users.password_hash` nullable + `user_auth_identities` table
-- [ ] Google ID token verification (all three client IDs as accepted audiences)
-- [ ] Apple identity token verification (Apple public keys); persist name on first sign-in; accept private-relay emails
-- [ ] `POST /auth/google` + `POST /auth/apple` (sign in / create, 409 on email collision)
-- [ ] Identity endpoints: list, connect, disconnect (last-method guardrail), `POST /auth/set-password`
-- [ ] Prefill `user_profiles.display_name` / `avatar_url` from the provider on account creation
-- [ ] Tests: new user, returning user, email collision, disconnect-last-method, disabled account on every method
-
-**Social sign-in — UI** *(later TODO — blocked on Apple Developer Program enrollment)*
-- [ ] Login + register screens (built in Phase 1): "Continue with Google" / "Continue with Apple" buttons, on every platform
-- [ ] Email-collision screen with guidance to sign in and connect from Profile
+_Social sign-in, originally part of this phase, is split out into Phase 5b below because it is blocked on Apple Developer Program enrollment. The Profile screen's Account → sign-in methods row waits on it._
 
 **Backend — data**
 - [ ] `users.role` (`'user'` | `'admin'`, default `'user'`) + `users.disabled_at` columns + migration
@@ -790,35 +825,51 @@ Disabled account (users.disabled_at set)
 - [ ] Apply `user_settings.units` to every weight/height/quantity display across the app — done for Profile body stats and meal screens (`app/edit-profile.tsx`, `app/(tabs)/profile.tsx`, `app/add-meal.tsx`, `app/meal/[id].tsx`); not yet wired into product or log-entry gram displays
 - [ ] Admin section, rendered only for `role = 'admin'`: system groups, user management (incl. sign-in methods column), stats
 
-### Phase 5b — Products screen: filters, sort, favourites
-- [x] `products.is_favorite` + migration 0013; `PATCH /products/:id` accepts it
-- [x] Derived `last_logged_at` / `log_count` on every product response
-- [x] Filters sheet (groups match-any, brands, nutrition presets, max kcal), Sort sheet, favourites pill + heart on cards
-- [x] Group filtering moved client-side — the product store always holds the full library
+### Phase 5b — Social Sign-In  *(⏸ blocked — Apple Developer Program enrollment)*
 
-### Phase 6 — Web & Deploy
-- [ ] React web app (Vite) with shared API client
-- [ ] CI/CD pipeline (GitHub Actions)
-- [ ] Deploy backend (Railway / Render / Fly.io)
-- [ ] Deploy web app (Vercel / Netlify)
-- [ ] Environment config (dev / prod)
+Deferred, later TODO. Blocked on enrolling in the Apple Developer Program (needed for any signed iOS build, not just Apple Sign-In specifically — `@react-native-google-signin/google-signin` also requires a signed dev build). The rest of Phase 5 (Profile, Settings & Admin) has no dependency on social sign-in and ships first; only the Profile screen's Account → sign-in methods row (connect/disconnect Google & Apple) waits on it. Revisit the three checklists below once enrolled — Android could unblock Google sign-in sooner if that's wanted before Apple lands.
 
-### Phase 7 — AI Scanning & Chat
+**Social sign-in — setup** *(later TODO — blocked on Apple Developer Program enrollment)*
+- [ ] Google Cloud OAuth client IDs (iOS, Android, web); Apple Services ID, key, and Sign in with Apple capability; secrets in env config
+- [ ] Move mobile to an Expo development build (native sign-in modules don't run in Expo Go)
+
+**Social sign-in — backend** *(later TODO — blocked on Apple Developer Program enrollment)*
+- [ ] Migration: `users.password_hash` nullable + `user_auth_identities` table
+- [ ] Google ID token verification (all three client IDs as accepted audiences)
+- [ ] Apple identity token verification (Apple public keys); persist name on first sign-in; accept private-relay emails
+- [ ] `POST /auth/google` + `POST /auth/apple` (sign in / create, 409 on email collision)
+- [ ] Identity endpoints: list, connect, disconnect (last-method guardrail), `POST /auth/set-password`
+- [ ] Prefill `user_profiles.display_name` / `avatar_url` from the provider on account creation
+- [ ] Tests: new user, returning user, email collision, disconnect-last-method, disabled account on every method
+
+**Social sign-in — UI** *(later TODO — blocked on Apple Developer Program enrollment)*
+- [ ] Login + register screens (built in Phase 1): "Continue with Google" / "Continue with Apple" buttons, on every platform
+- [ ] Email-collision screen with guidance to sign in and connect from Profile
+
+### Phase 6 — AI Scanning & Chat  *(📋 planned — core feature, not started)*
 - [ ] Camera screen with capture flow
 - [ ] `POST /ai/scan` endpoint + Claude Vision integration (incl. suggested group)
 - [ ] Draft product card UI with group pre-selection
 - [ ] AI chat screen + `POST /ai/chat` endpoint
 - [ ] Diff confirmation UI before saving AI edits (fields + group changes)
 
-### Phase 8 — Recipes → Meals Rename
-- [x] Alembic migration: rename `recipes`→`meals`, `recipe_ingredients`→`meal_ingredients`, `recipe_portions`→`meal_portions` (`backend/alembic/versions/0008_rename_recipes_to_meals.py`)
-- [ ] `log_entries.recipe_id`→`meal_id`, `log_entries.meal_type`→`meal_slot`, `log_entry_recipe_ingredients`→`log_entry_meal_ingredients`, `source_type` value `'recipe'`→`'meal'` — N/A for now: `log_entries` doesn't exist yet (unbuilt Phase 4/5 feature). Build it directly with `meal_id`/`meal_slot`/`log_entry_meal_ingredients` naming when it lands; no separate rename needed.
-- [x] Backend: rename SQLAlchemy models, Pydantic schemas, and router paths (`/recipes/*` → `/meals/*`)
-- [ ] Backend: update `POST /log` request/response handling for `meal_id` and `meal_slot` — N/A for now, `/log` doesn't exist yet (see above)
-- [x] Backend tests: update fixtures and assertions referencing recipe/meal_type naming
-- [x] Frontend (mobile): rename Zustand store, components, types, and routes (`useRecipeStore`→`useMealStore`, `/recipes`→`/meals`, etc.). Web has no code yet (`web/src` doesn't exist) — `web/CLAUDE.md`'s planned filenames/store updated to match.
-- [x] UI copy sweep: "Recipe" → "Meal" in nav labels, screen titles, buttons, empty states
-- [x] Final grep sweep across repo for stray `recipe`/`Recipe`/`RECIPE` occurrences (seed data, error messages, comments)
+### Phase 7 — Web & Deploy  *(📋 planned)*
+- [ ] React web app (Vite) with shared API client
+- [ ] CI/CD pipeline (GitHub Actions)
+- [ ] Deploy backend (Railway / Render / Fly.io)
+- [ ] Deploy web app (Vercel / Netlify)
+- [ ] Environment config (dev / prod)
+
+### Phase 8 — Product Portions & Public Catalog  *(📋 planned)*
+- [x] `product_portions` table + CRUD (mirroring `meal_portions`); gram-based `serving_size`/`serving_unit` migrated into a default portion (migration 0014)
+- [x] Product log flow: pick a portion × count, or grams
+- [x] Meals follow products (`meal_ingredients.uses_own_values`), log entries freeze their own nutrition (`log_entries.nutrition`, `log_entry_meal_ingredients.nutrition`) — migrations 0016/0017
+- [x] Extended nutrition: `saturated_fat` column, `nutrients` + `product_nutrients` tables, `GET /nutrients`, meal-ingredient snapshot (0014/0015); Product page redesign (breakdown with %RI, vitamins & minerals with %NRV, per-portion view)
+- [ ] Backend OFF client (User-Agent, barcode lookup, search) with a barcode-keyed cache
+- [ ] `GET /catalog/search?q=` + `GET /catalog/barcode/:code` + import-into-library endpoint
+- [ ] "Search public catalog" entry point in Add Product; OFF attribution in the UI
+- [ ] Barcode → catalog lookup ahead of Claude Vision in the Phase 6 scan flow
+- [ ] (Optional) opt-in "Share to Open Food Facts" for user-created barcoded products
 
 ---
 
@@ -843,6 +894,9 @@ Disabled account (users.disabled_at set)
 | 15 | Avatar: depends on #4 (object storage) — ship initials-only until then? | Partly solved — Google users get their Google photo URL as `avatar_url` without any storage; uploads still depend on #4, initials fallback ships regardless |
 | 16 | Should social-only users be nudged to also set a password (or connect a second provider) as a backup sign-in method? | **Pending** |
 | 17 | Email changes: if a user's Google/Apple email changes, do we update `users.email`, or keep the email from sign-up? | Proposed: keep sign-up email; `user_auth_identities.email` is informational only |
+| 18 | Public catalog source: Open Food Facts only, or also USDA FoodData Central (CC0, US-focused, generic foods)? | Proposed: OFF only to start |
+| 19 | Publishing user-created products: contribute to OFF via its write API (one app account, or user-linked OFF accounts?), or run a NutriScan-hosted shared catalog? | Proposed: opt-in contribute to OFF |
+| 20 | OFF access at scale: API + cache, or nightly import of OFF's data export into Postgres? | Proposed: API + cache first, export import once traffic needs it |
 
 ---
 

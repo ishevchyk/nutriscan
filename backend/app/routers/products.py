@@ -2,17 +2,20 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, select, union_all
+from sqlalchemy import func, select, union_all, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_db
 from app.models.group import Group
 from app.models.log_entry import LogEntry
 from app.models.log_entry_meal_ingredient import LogEntryMealIngredient
+from app.models.nutrient import Nutrient, ProductNutrient
 from app.models.product import Product
+from app.models.product_portion import ProductPortion
 from app.models.product_group import ProductGroup
 from app.models.product_unit_conversions import ProductUnitConversion
 from app.models.user import User
+from app.schemas.product_portion import ProductPortionCreate, ProductPortionOut, ProductPortionUpdate
 from app.schemas.product import ProductCreate, ProductOut, ProductUpdate
 from app.schemas.product_unit_conversion import ProductUnitConversionCreate, ProductUnitConversionOut
 
@@ -50,6 +53,67 @@ async def _attach_groups(db: AsyncSession, products: list[Product]) -> None:
         by_product[product_id].append(group)
     for product in products:
         product.groups = by_product.get(product.id, [])
+
+
+async def _attach_nutrients(db: AsyncSession, products: list[Product]) -> None:
+    """Batch-load extended nutrients as `.nutrients` ({code: amount})."""
+    if not products:
+        return
+    product_ids = [p.id for p in products]
+    result = await db.execute(
+        select(ProductNutrient).where(ProductNutrient.product_id.in_(product_ids))
+    )
+    by_product: dict[UUID, dict[str, float]] = {pid: {} for pid in product_ids}
+    for row in result.scalars().all():
+        by_product[row.product_id][row.nutrient_code] = row.amount
+    for product in products:
+        product.nutrients = by_product[product.id]
+
+
+async def _attach_portions(db: AsyncSession, products: list[Product]) -> None:
+    if not products:
+        return
+    product_ids = [p.id for p in products]
+    result = await db.execute(
+        select(ProductPortion).where(ProductPortion.product_id.in_(product_ids)).order_by(ProductPortion.created_at)
+    )
+    by_product: dict[UUID, list[ProductPortion]] = {pid: [] for pid in product_ids}
+    for portion in result.scalars().all():
+        by_product[portion.product_id].append(portion)
+    for product in products:
+        product.portions = by_product[product.id]
+
+
+async def _apply_nutrients(db: AsyncSession, product_id: UUID, nutrients: dict[str, float | None]) -> None:
+    """Upsert/delete extended nutrient rows. A null amount deletes the row
+    (unknown); an unknown code or a negative amount is a 422."""
+    if not nutrients:
+        return
+    known = set(
+        (await db.execute(select(Nutrient.code).where(Nutrient.code.in_(list(nutrients))))).scalars().all()
+    )
+    unknown = sorted(set(nutrients) - known)
+    if unknown:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Unknown nutrient code(s): {', '.join(unknown)}"
+        )
+    if any(v is not None and v < 0 for v in nutrients.values()):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Nutrient amounts cannot be negative")
+    existing = {
+        row.nutrient_code: row
+        for row in (
+            await db.execute(select(ProductNutrient).where(ProductNutrient.product_id == product_id))
+        ).scalars()
+    }
+    for code, amount in nutrients.items():
+        row = existing.get(code)
+        if amount is None:
+            if row is not None:
+                await db.delete(row)
+        elif row is not None:
+            row.amount = amount
+        else:
+            db.add(ProductNutrient(product_id=product_id, nutrient_code=code, amount=amount))
 
 
 async def _attach_log_stats(db: AsyncSession, products: list[Product]) -> None:
@@ -97,6 +161,8 @@ async def _attach_log_stats(db: AsyncSession, products: list[Product]) -> None:
 
 async def _hydrate(db: AsyncSession, products: list[Product]) -> None:
     await _attach_groups(db, products)
+    await _attach_nutrients(db, products)
+    await _attach_portions(db, products)
     await _attach_log_stats(db, products)
 
 
@@ -123,8 +189,12 @@ async def create_product(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    product = Product(**body.model_dump(), user_id=current_user.id)
+    data = body.model_dump()
+    nutrients = data.pop("nutrients", None) or {}
+    product = Product(**data, user_id=current_user.id)
     db.add(product)
+    await db.flush()
+    await _apply_nutrients(db, product.id, nutrients)
     await db.commit()
     await db.refresh(product)
     await _hydrate(db, [product])
@@ -177,8 +247,12 @@ async def update_product(
     product = result.scalar_one_or_none()
     if not product:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
-    for field, value in body.model_dump(exclude_unset=True).items():
+    updates = body.model_dump(exclude_unset=True)
+    nutrients = updates.pop("nutrients", None)
+    for field, value in updates.items():
         setattr(product, field, value)
+    if nutrients:
+        await _apply_nutrients(db, product.id, nutrients)
     await db.commit()
     await db.refresh(product)
     await _hydrate(db, [product])
@@ -269,3 +343,90 @@ async def save_unit_conversion(
     await db.commit()
     await db.refresh(conversion)
     return conversion
+
+
+@router.get("/{product_id}/portions", response_model=list[ProductPortionOut])
+async def list_portions(
+    product_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    await _get_owned_product(db, product_id, current_user)
+    result = await db.execute(
+        select(ProductPortion).where(ProductPortion.product_id == product_id).order_by(ProductPortion.created_at)
+    )
+    return result.scalars().all()
+
+
+@router.post("/{product_id}/portions", response_model=ProductPortionOut, status_code=status.HTTP_201_CREATED)
+async def create_portion(
+    product_id: UUID,
+    body: ProductPortionCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    await _get_owned_product(db, product_id, current_user)
+    if body.is_default:
+        await db.execute(
+            update(ProductPortion)
+            .where(ProductPortion.product_id == product_id, ProductPortion.is_default.is_(True))
+            .values(is_default=False)
+        )
+    portion = ProductPortion(product_id=product_id, name=body.name, grams=body.grams, is_default=body.is_default)
+    db.add(portion)
+    await db.commit()
+    await db.refresh(portion)
+    return portion
+
+
+async def _get_owned_portion(
+    db: AsyncSession, product_id: UUID, portion_id: UUID, current_user: User
+) -> ProductPortion:
+    await _get_owned_product(db, product_id, current_user)
+    result = await db.execute(
+        select(ProductPortion).where(ProductPortion.id == portion_id, ProductPortion.product_id == product_id)
+    )
+    portion = result.scalar_one_or_none()
+    if not portion:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Portion not found")
+    return portion
+
+
+@router.patch("/{product_id}/portions/{portion_id}", response_model=ProductPortionOut)
+async def update_portion(
+    product_id: UUID,
+    portion_id: UUID,
+    body: ProductPortionUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    portion = await _get_owned_portion(db, product_id, portion_id, current_user)
+    updates = body.model_dump(exclude_unset=True)
+    if updates.get("is_default") is True:
+        await db.execute(
+            update(ProductPortion)
+            .where(
+                ProductPortion.product_id == product_id,
+                ProductPortion.is_default.is_(True),
+                ProductPortion.id != portion_id,
+            )
+            .values(is_default=False)
+        )
+    for field, value in updates.items():
+        setattr(portion, field, value)
+    await db.commit()
+    await db.refresh(portion)
+    return portion
+
+
+@router.delete("/{product_id}/portions/{portion_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_portion(
+    product_id: UUID,
+    portion_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Hard-deleted like meal_portions (backend/CLAUDE.md's soft-delete exception list).
+    portion = await _get_owned_portion(db, product_id, portion_id, current_user)
+    await db.delete(portion)
+    await db.commit()

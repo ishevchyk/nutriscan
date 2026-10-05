@@ -117,6 +117,8 @@ class LogMacrosOut(BaseModel):
 class LogEntryMealIngredientOut(BaseModel):
     product_id: uuid.UUID | None
     grams: float
+    # Name frozen at log time; stays available after the product is purged.
+    name: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -127,6 +129,8 @@ class LogEntryOut(BaseModel):
     meal_slot: str
     source_type: str
     product_id: uuid.UUID | None
+    # Product name frozen at log time (source_type='product' only).
+    name: str | None = None
     quantity_grams: float | None
     meal_id: uuid.UUID | None
     portion_id: uuid.UUID | None

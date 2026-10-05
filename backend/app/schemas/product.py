@@ -5,6 +5,7 @@ from pydantic import BaseModel, field_validator
 
 from app.sanitize import sanitize_rich_text
 from app.schemas.group import GroupOut
+from app.schemas.product_portion import ProductPortionOut
 
 
 class ProductCreate(BaseModel):
@@ -18,6 +19,10 @@ class ProductCreate(BaseModel):
     fiber: float | None = None
     sugar: float | None = None
     salt: float | None = None
+    saturated_fat: float | None = None
+    # Extended nutrients {code: amount per 100 g in the nutrient's own unit}.
+    # On PATCH a null value deletes that nutrient (back to unknown).
+    nutrients: dict[str, float | None] | None = None
     serving_size: float | None = None
     serving_unit: str | None = None
     notes: str | None = None
@@ -40,6 +45,8 @@ class ProductUpdate(BaseModel):
     fiber: float | None = None
     sugar: float | None = None
     salt: float | None = None
+    saturated_fat: float | None = None
+    nutrients: dict[str, float | None] | None = None
     serving_size: float | None = None
     serving_unit: str | None = None
     notes: str | None = None
@@ -74,6 +81,7 @@ class ProductOut(BaseModel):
     fiber: float | None
     sugar: float | None
     salt: float | None
+    saturated_fat: float | None
     serving_size: float | None
     serving_unit: str | None
     notes: str | None
@@ -83,6 +91,8 @@ class ProductOut(BaseModel):
     deleted_at: datetime | None
     is_favorite: bool = False
     groups: list[GroupOut] = []
+    nutrients: dict[str, float] = {}
+    portions: list[ProductPortionOut] = []
     # Derived from the user's log, not stored on the row -- see
     # app/routers/products.py's _attach_log_stats. Counts log entries that
     # reference the product directly (source_type='product') or as an
