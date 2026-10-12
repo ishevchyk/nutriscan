@@ -5,7 +5,7 @@ See README.md for full project overview,
 database schema, API endpoints, and AI integration details.
 
 ## Stack
-- expo-camera — camera for AI photo scanning (not yet added as a dependency; needed for Phase 6)
+- expo-camera — barcode scanning for the public catalog (`app/barcode-scan.tsx`, Phase 8); also the camera for AI photo scanning (Phase 6). Needs a dev-client rebuild after install (camera permission plugin in `app.json`)
 
 > **Offline support (SQLite + sync queue) was deliberately deferred.**
 > The app currently reads and writes directly against the backend API on
@@ -55,3 +55,9 @@ database schema, API endpoints, and AI integration details.
   - Manual (`components/tracker/ManualSourceStep.tsx`) — type calories/protein/fat/carbs directly, no product needed
 - Meals (Phase 3) are implemented (`useMealStore`, `app/(tabs)/meals.tsx`, `app/meal/[id].tsx`, `app/add-meal.tsx`), so the meal-logging path above is unblocked.
 - See `README.md` §10 Phase 4 for the full checklist (all shipped) and Phase 5 for what's still outstanding on Profile/Settings/Admin, which this doc doesn't duplicate.
+
+## Public catalog (Phase 8 — Open Food Facts)
+- Add Product (`app/add-product.tsx`) has two entry points: `app/catalog-search.tsx` and `app/barcode-scan.tsx`. Both are modals pushed *on top of* Add Product (never replacing it, so the meal-picker resolver survives) and hand their result back through `store/catalogStore.ts` (`draft` / `prefillBarcode`), which Add Product applies to the form. Saving a draft calls `POST /catalog/import` (product + portions + nutrients + groups in one transaction).
+- Lookup outcomes other than "found" (already in library / not found / error) are rendered by `components/catalog/LookupOutcomePanel.tsx` via `hooks/useCatalogLookup.ts`. `onScanLabelWithAI` on the panel is the Phase 6 hook for the Claude Vision fallback; nothing passes it yet.
+- Catalog errors come back as `{ detail: { code, ... } }`; parse them with `utils/catalogErrors.ts`. Search runs on submit or after a 600 ms pause at ≥ 3 chars (`hooks/useDebouncedValue.ts`), never per keystroke.
+- "Data from Open Food Facts" (`components/catalog/OffAttribution.tsx`) must appear wherever catalog data is shown. Product weights stay in grams (the units setting only affects body stats).

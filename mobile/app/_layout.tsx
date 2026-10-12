@@ -175,6 +175,24 @@ export default function RootLayout() {
                     }}
                 />
                 <Stack.Screen
+                    name="catalog-search"
+                    options={{
+                        presentation: 'modal',
+                        header: () => (
+                            <ScreenHeader headerTitle="Public catalog" rightAction={{ label: 'CANCEL', onPress: () => router.back() }} />
+                        ),
+                    }}
+                />
+                <Stack.Screen
+                    name="barcode-scan"
+                    options={{
+                        presentation: 'modal',
+                        header: () => (
+                            <ScreenHeader headerTitle="Scan barcode" rightAction={{ label: 'CANCEL', onPress: () => router.back() }} />
+                        ),
+                    }}
+                />
+                <Stack.Screen
                     name="meal-picker"
                     options={{
                         presentation: 'modal',

@@ -1,8 +1,10 @@
 import { useEffect } from 'react';
-import { StyleSheet, Text } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text } from 'react-native';
 import { Control, Controller, FieldErrors, FieldPath } from 'react-hook-form';
 
 import { Spacing, Typography } from '../../constants/theme';
+import { OFF_PRODUCT_URL, OFF_WEBSITE_URL } from '../../constants/env';
+import { useThemeColor } from '../../hooks/useThemeColor';
 import { ProductFormInput, ProductFormValues } from '../../hooks/useProductForm';
 import { SectionLabel, UnderlineField, RichEditorField } from '../ui';
 import { GroupPicker } from '../groups/GroupPicker';
@@ -67,6 +69,7 @@ function ControlledUnderlineField({
 
 export function ProductFormFields({ control, errors, groups, selectedGroupIds, onToggleGroup, product, basis, onSavePortion, onCommit, onTrack }: ProductFormFieldsProps) {
     const { nutrients, loaded, loadNutrients } = useNutrientStore();
+    const colors = useThemeColor();
     useEffect(() => {
         if (!loaded) loadNutrients();
     }, [loaded]);
@@ -94,7 +97,15 @@ export function ProductFormFields({ control, errors, groups, selectedGroupIds, o
             <ProductNutritionSections control={control} portions={product?.portions ?? []} nutrients={nutrients} basis={basis} onSavePortion={onSavePortion} onCommit={onCommit} />
 
             {product?.source === 'catalog' && (
-                <Text style={styles.attribution}>DATA FROM OPEN FOOD FACTS · ODBL</Text>
+                <Pressable
+                    onPress={() => Linking.openURL(product.barcode ? `${OFF_PRODUCT_URL}${product.barcode}` : OFF_WEBSITE_URL)}
+                    accessibilityRole="link"
+                    hitSlop={8}
+                >
+                    <Text style={[styles.attribution, { color: colors.textSecondary }]}>
+                        IMPORTED FROM OPEN FOOD FACTS · ODBL ↗
+                    </Text>
+                </Pressable>
             )}
 
             {product && <PortionsSection product={product} onTrack={onTrack} />}
@@ -140,6 +151,5 @@ const styles = StyleSheet.create({
         fontFamily: Typography.fontFamily.mono,
         fontSize: Typography.fontSize.xxs,
         letterSpacing: Typography.letterSpacing.label,
-        color: '#9A9189',
     },
 });

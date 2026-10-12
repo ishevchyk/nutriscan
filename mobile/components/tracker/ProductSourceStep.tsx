@@ -1,3 +1,4 @@
+import { loggedAtForDate } from '../../utils/dateUtils';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -20,7 +21,7 @@ export function ProductSourceStep({ mealSlot, onLogged, onCancel }: ProductSourc
   const colors = useThemeColor();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { pick } = usePickProduct();
-  const { addEntry } = useLogStore();
+  const { addEntry, date } = useLogStore();
 
   const [product, setProduct] = useState<Product | null>(null);
   const [typedGrams, setTypedGrams] = useState<number | null>(null);
@@ -63,7 +64,7 @@ export function ProductSourceStep({ mealSlot, onLogged, onCancel }: ProductSourc
         product_id: product.id,
         quantity_grams: grams,
         meal_slot: mealSlot,
-        logged_at: new Date().toISOString(),
+        logged_at: loggedAtForDate(date),
       };
       await addEntry(payload);
       onLogged();

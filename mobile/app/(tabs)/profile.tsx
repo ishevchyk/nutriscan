@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 
 import { Radii, Spacing, ThemeColors, Typography } from '../../constants/theme';
+import { OFF_WEBSITE_URL, PRIVACY_POLICY_URL } from '../../constants/env';
 import { useThemeColor } from '../../hooks/useThemeColor';
 import { useDebugStore } from '../../store/debugStore';
 import { useSettingsStore } from '../../store/settingsStore';
@@ -218,6 +219,23 @@ export default function ProfileScreen() {
           <Text style={styles.rowHint}>Permanently remove your account and data</Text>
         </View>
         <MaterialDesignIcons name="chevron-right" size={20} color={colors.error} />
+      </Pressable>
+
+      <Text style={[styles.sectionLabel, styles.sectionSpacing]}>About</Text>
+      {PRIVACY_POLICY_URL ? (
+        <Pressable style={styles.row} onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}>
+          <View style={styles.rowText}>
+            <Text style={styles.rowLabel}>Privacy policy</Text>
+          </View>
+          <MaterialDesignIcons name="open-in-new" size={20} color={colors.textSecondary} />
+        </Pressable>
+      ) : null}
+      <Pressable style={styles.row} onPress={() => Linking.openURL(OFF_WEBSITE_URL)}>
+        <View style={styles.rowText}>
+          <Text style={styles.rowLabel}>Data from Open Food Facts</Text>
+          <Text style={styles.rowHint}>Product catalog data is available under the ODbL; images CC BY-SA.</Text>
+        </View>
+        <MaterialDesignIcons name="open-in-new" size={20} color={colors.textSecondary} />
       </Pressable>
 
       <Text style={[styles.sectionLabel, styles.sectionSpacing]}>Developer</Text>
