@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from app.catalog.off_client import close_off_client
 from app.jobs import run_purge_loop
 from app.routers import auth, products, meals, ai, groups, goals, log, profile, nutrients
 from app.routers import settings as settings_router
@@ -13,6 +14,7 @@ async def lifespan(app: FastAPI):
     purge_task = asyncio.create_task(run_purge_loop())
     yield
     purge_task.cancel()
+    await close_off_client()
 
 
 app = FastAPI(title="NutriScan API", version="0.1.0", lifespan=lifespan)

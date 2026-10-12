@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete, select
 
+from app.catalog.cache import purge_expired as purge_expired_catalog_cache
 from app.database import AsyncSessionLocal
 from app.models.product import Product
 from app.models.meal import Meal
@@ -46,6 +47,8 @@ async def purge_expired_soft_deletes(session_factory=AsyncSessionLocal) -> int:
             delete(Meal).where(Meal.deleted_at.is_not(None), Meal.deleted_at < cutoff)
         )
         await db.commit()
+        # Shared OFF cache rows aren't user data, but expire on the same loop.
+        await purge_expired_catalog_cache(db)
         return (products_result.rowcount or 0) + (meals_result.rowcount or 0)
 
 
