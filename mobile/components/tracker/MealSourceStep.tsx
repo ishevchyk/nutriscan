@@ -1,3 +1,4 @@
+import { loggedAtForDate } from '../../utils/dateUtils';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -32,7 +33,7 @@ export function MealSourceStep({ mealId, mealSlot, onLogged }: MealSourceStepPro
   const colors = useThemeColor();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { selected, selectedLoading, fetchMeal } = useMealStore();
-  const { addEntry } = useLogStore();
+  const { addEntry, date } = useLogStore();
 
   useEffect(() => {
     if (selected?.id !== mealId) {
@@ -152,7 +153,7 @@ export function MealSourceStep({ mealId, mealSlot, onLogged }: MealSourceStepPro
         source_type: 'meal',
         meal_id: meal.id,
         meal_slot: mealSlot,
-        logged_at: new Date().toISOString(),
+        logged_at: loggedAtForDate(date),
         quantity_grams: loggedGrams,
       };
 

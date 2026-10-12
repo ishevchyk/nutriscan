@@ -1,3 +1,4 @@
+import { loggedAtForDate } from '../../utils/dateUtils';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -14,7 +15,7 @@ type ManualSourceStepProps = {
 export function ManualSourceStep({ mealSlot, onLogged }: ManualSourceStepProps) {
   const colors = useThemeColor();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const { addEntry } = useLogStore();
+  const { addEntry, date } = useLogStore();
 
   const [calories, setCalories] = useState<number | null>(null);
   const [protein, setProtein] = useState<number | null>(null);
@@ -35,7 +36,7 @@ export function ManualSourceStep({ mealSlot, onLogged }: ManualSourceStepProps) 
         manual_fat: fat,
         manual_carbs: carbs,
         meal_slot: mealSlot,
-        logged_at: new Date().toISOString(),
+        logged_at: loggedAtForDate(date),
       };
       await addEntry(payload);
       onLogged();

@@ -51,3 +51,11 @@ export function formatMonthLabel(year: number, month: number): string {
     .toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
     .toUpperCase();
 }
+
+/** ISO timestamp for a new log entry on `dateStr`: now for today, otherwise noon local on that day. */
+export function loggedAtForDate(dateStr: string): string {
+  if (isToday(dateStr)) return new Date().toISOString();
+  const d = fromISODate(dateStr);
+  d.setHours(12, 0, 0, 0);
+  return d.toISOString();
+}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { Radii, Spacing, ThemeColors, Typography } from '../constants/theme';
@@ -10,6 +10,8 @@ import { useProductStore } from '../store/productStore';
 import { useGroupStore } from '../store/groupStore';
 import { usePickerStore } from '../store/pickerStore';
 import { ProductFormFields } from '../components/products/ProductFormFields';
+import { CatalogDraftBanner } from '../components/catalog/CatalogDraftBanner';
+import { CatalogDraft, useCatalogStore } from '../store/catalogStore';
 
 export default function AddProduct() {
     const router = useRouter();
@@ -42,8 +44,42 @@ export default function AddProduct() {
         };
     }, [isForMeal]);
 
-    const { control, handleSubmit, formState: { errors } } = useProductForm(undefined, name);
+    const { control, handleSubmit, reset, setValue, formState: { errors } } = useProductForm(undefined, name);
     const [saving, setSaving] = useState(false);
+
+    // Catalog search / barcode scan screens sit on top of this one (so the
+    // meal-picker resolver above stays alive) and hand their result back here.
+    const incomingDraft = useCatalogStore((s) => s.draft);
+    const prefillBarcode = useCatalogStore((s) => s.prefillBarcode);
+    const [catalogDraft, setCatalogDraft] = useState<CatalogDraft | null>(null);
+
+    useEffect(() => {
+        if (!incomingDraft) return;
+        reset({
+            name: incomingDraft.name,
+            brand: incomingDraft.brand ?? '',
+            barcode: incomingDraft.barcode,
+            calories: incomingDraft.calories,
+            protein: incomingDraft.protein,
+            fat: incomingDraft.fat,
+            carbs: incomingDraft.carbs,
+            fiber: incomingDraft.fiber,
+            sugar: incomingDraft.sugar,
+            salt: incomingDraft.salt,
+            saturated_fat: incomingDraft.saturated_fat,
+            nutrients: incomingDraft.nutrients,
+            notes: incomingDraft.notes ?? '',
+        });
+        setSelectedGroupIds(incomingDraft.suggested_group_id ? [incomingDraft.suggested_group_id] : []);
+        setCatalogDraft(incomingDraft);
+        useCatalogStore.getState().setDraft(null);
+    }, [incomingDraft]);
+
+    useEffect(() => {
+        if (!prefillBarcode) return;
+        setValue('barcode', prefillBarcode);
+        useCatalogStore.getState().setPrefillBarcode(null);
+    }, [prefillBarcode]);
 
     function toggleGroup(groupId: string) {
         setSelectedGroupIds((ids) => (ids.includes(groupId) ? ids.filter((i) => i !== groupId) : [...ids, groupId]));
@@ -53,12 +89,23 @@ export default function AddProduct() {
         if (saving) return;
         setSaving(true);
         try {
-            const product = await addProduct(data);
-            if (basis.newPortion) {
-                await addPortion(product.id, { ...basis.newPortion, is_default: true });
-            }
-            if (selectedGroupIds.length > 0) {
-                await assignProductToGroups(product.id, selectedGroupIds);
+            let product;
+            if (catalogDraft) {
+                // One transaction on the server: product + portions + nutrients + groups.
+                product = await useCatalogStore.getState().importProduct({
+                    ...data,
+                    barcode: data.barcode ?? catalogDraft.barcode,
+                    portions: catalogDraft.portions,
+                    group_ids: selectedGroupIds,
+                });
+            } else {
+                product = await addProduct(data);
+                if (basis.newPortion) {
+                    await addPortion(product.id, { ...basis.newPortion, is_default: true });
+                }
+                if (selectedGroupIds.length > 0) {
+                    await assignProductToGroups(product.id, selectedGroupIds);
+                }
             }
             if (isForMeal) {
                 usePickerStore.getState().resolveAddProduct({ kind: 'library', product });
@@ -77,6 +124,19 @@ export default function AddProduct() {
 
     return (
         <ScrollView style={{ backgroundColor: colors.pageBackground }} contentContainerStyle={styles.container}>
+            {catalogDraft ? (
+                <CatalogDraftBanner draft={catalogDraft} />
+            ) : (
+                <View style={styles.entryRow}>
+                    <Pressable style={styles.entryButton} onPress={() => router.push('/catalog-search')}>
+                        <Text style={styles.entryText}>Search public catalog</Text>
+                    </Pressable>
+                    <Pressable style={styles.entryButton} onPress={() => router.push('/barcode-scan')}>
+                        <Text style={styles.entryText}>Scan barcode</Text>
+                    </Pressable>
+                </View>
+            )}
+
             <ProductFormFields
                 control={control}
                 errors={errors}
@@ -94,11 +154,11 @@ export default function AddProduct() {
                 {saving ? (
                     <ActivityIndicator color={colors.onPrimary} />
                 ) : (
-                    <Text style={styles.buttonText}>{allowMealOnly ? 'Save to Library' : 'Save'}</Text>
+                    <Text style={styles.buttonText}>{allowMealOnly && !catalogDraft ? 'Save to Library' : 'Save'}</Text>
                 )}
             </Pressable>
 
-            {allowMealOnly && (
+            {allowMealOnly && !catalogDraft && (
                 <Pressable
                     style={[styles.secondaryButton, saving && styles.buttonDisabled]}
                     onPress={handleSubmit(onSubmitMealOnly)}
@@ -130,6 +190,25 @@ function createStyles(colors: ThemeColors) {
         buttonText: {
             color: colors.onPrimary,
             fontSize: Typography.fontSize.base,
+            fontWeight: Typography.fontWeight.semibold,
+        },
+        entryRow: {
+            flexDirection: 'row',
+            gap: Spacing.sm,
+            marginBottom: Spacing.md,
+        },
+        entryButton: {
+            flex: 1,
+            borderWidth: 1,
+            borderColor: colors.primary,
+            borderStyle: 'dashed',
+            borderRadius: Radii.lg,
+            paddingVertical: Spacing.md,
+            alignItems: 'center',
+        },
+        entryText: {
+            color: colors.primary,
+            fontSize: Typography.fontSize.sm,
             fontWeight: Typography.fontWeight.semibold,
         },
         buttonDisabled: {

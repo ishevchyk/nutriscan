@@ -161,12 +161,19 @@ NutriScan is a personal nutrition tracking app that lets users build a library o
 - Portions found via Open Food Facts (§3.10, `serving_quantity`) pre-fill a default portion on import
 - Distinct from `product_unit_conversions`: a conversion turns a household *unit* into grams for meal ingredients; a portion is a named, ready-to-log amount of that product
 
-### 3.10 Public Product Catalog — Open Food Facts *(planned — see Phase 8)*
+### 3.10 Public Product Catalog — Open Food Facts *(Phase 8 — Stages 1–4 shipped)*
 - Search a public catalog and import a product instead of typing it in. Source: [Open Food Facts](https://world.openfoodfacts.org) (OFF) — free, crowd-sourced, strong EU/Ukrainian coverage, barcode-keyed, per-100g nutriments
 - **Import = copy.** A catalog hit is copied into the user's own library (`source = 'catalog'`, keeping the barcode as the reference), like the meal-ingredient snapshot pattern. After import it's an ordinary product the user owns and edits — the core value "your real-world food data" holds
 - **Scanning order (Phase 6):** barcode scan → OFF lookup first → Claude Vision only when OFF has no match or the user is shooting a nutrition label. Cheaper and more accurate than vision on every scan
 - **All OFF traffic goes through the backend**, never from the client. OFF limits reads to 15 req/min and search to 10 req/min *per IP*, and every user would share the server's IP, so the backend caches lookups (by barcode); at scale, import OFF's data export into Postgres and search locally
-- OFF requires a custom User-Agent (`NutriScan/<version> (<contact email>)`); test against its staging server first
+- OFF requires a custom User-Agent (`NutriScan/<version> (<contact email>)`, from `OFF_CONTACT_EMAIL`); dev and tests use staging (`world.openfoodfacts.net`, basic auth `off:off`), production only with `OFF_USE_STAGING=false`
+- **Pinned API version:** product reads use `/api/v3.4/product/{code}` (`API_VERSION` in `backend/app/catalog/off_client.py`). v3.5+ returns OFF's still-evolving nutrition-facts structure; v3.4 keeps the classic flat `nutriments`. Migrating later = that constant plus `catalog/mapping.py`. Real responses are saved in `backend/tests/fixtures/off/` (re-record with `scripts/record_off_fixtures.py`)
+- **Units:** every `<code>_100g` value is in grams regardless of the nutrient (verified: `vitamin-a_100g = 0.0001155`, `vitamin-a_unit = "g"` → 115.5 µg), so extended nutrients are converted into each nutrient's own unit. `nutrients.code` equals the OFF key, so mapping is a lookup
+- **Search:** Search-a-licious (`search.openfoodfacts.org/search`) is primary; the legacy `/cgi/search.pl` is a fallback behind `OFF_SEARCH_BACKEND=legacy`. The mobile app searches on submit or after a 600 ms pause at ≥ 3 characters, never per keystroke
+- **Budget & resilience:** a per-process token bucket (reads 12/min, search 8/min — under OFF's 15/10) fails fast with `CatalogBusy`; OFF 429/5xx/timeout trips a 60 s circuit breaker (`CatalogUnavailable`); a per-user limit of 20 catalog calls/min protects the shared budget. All of these surface as `503 { code: 'catalog_unavailable', retry_after }` (user limit: `429 rate_limited`). The limiters are in-memory, so a multi-instance deploy needs a shared limiter (Postgres advisory lock or Redis)
+- **Cache:** Postgres tables `catalog_products` (7 d for hits, 24 h negative cache for unknown barcodes; stale hits are served when OFF is down) and `catalog_search_cache` (24 h); expired rows are removed by the hourly purge job
+- **Barcodes** are normalized like OFF (strip leading zeros, pad ≤ 7 digits to 8 and 9–12 to 13) on cache keys and on `products.barcode` writes; duplicate detection also matches legacy rows by ignoring leading zeros
+- **Liquids** reported per 100 ml are mapped as per 100 g with a "Nutrition is per 100 ml" note (the app is grams-only); ml servings do not become portions
 - **Sharing user-created products** (Open Questions #19): preferred option is an opt-in "Share to Open Food Facts" on barcoded products, using OFF's write API — OFF handles moderation, duplicates and vandalism. A NutriScan-run public catalog would need moderation tooling that doesn't exist yet
 - **Licensing:** OFF data is ODbL (contents under the Database Contents License; images CC BY-SA). The app must credit "Data from Open Food Facts", and a redistributed database derived from it must stay ODbL
 
@@ -316,7 +323,10 @@ Every other nutrient (mono/polyunsaturates, trans fat, polyols, starch, choleste
 nutrients         (code PK = Open Food Facts key, name, unit 'g'|'mg'|'µg', category, parent_code, nrv, sort_order)
 product_nutrients (product_id FK ON DELETE CASCADE, nutrient_code FK, amount) -- per 100g, in the nutrient's own unit; PK (product_id, nutrient_code)
 product_portions  (id, product_id FK ON DELETE CASCADE, name, grams, is_default, created_at) -- at most one default per product (partial unique index)
+catalog_products     (code PK = normalized barcode, payload JSONB, found BOOLEAN, fetched_at) -- shared OFF lookup cache; found=false is a negative entry
+catalog_search_cache (key PK = hash(query+langs+page), payload JSONB, fetched_at)             -- shared OFF search cache
 ```
+The two `catalog_*` tables are shared cache (no `user_id`, no soft delete); migration 0018.
 Null/missing means unknown, never 0. `meal_ingredients` snapshots `saturated_fat` plus a `nutrients` JSONB map. Product responses include `nutrients: {code: amount}` and `portions[]`. Seed list: `backend/app/nutrient_catalog.py`.
 
 ### groups
@@ -529,6 +539,14 @@ PATCH  /products/:id/portions/:id            Update a portion (setting is_defaul
 DELETE /products/:id/portions/:id            Delete a portion
 GET    /nutrients                            Reference table (labels, units, NRVs) for extended nutrients; cacheable
 ```
+
+### Catalog (Open Food Facts)
+```
+GET    /catalog/barcode/:code                OFF product mapped to a draft; 404 { code: 'catalog_not_found' }; includes already_in_library { product_id, deleted } | null
+GET    /catalog/search?q=&page=              { items: [{ code, name, brand, quantity, image_url, kcal_100g }], page, has_more }; q ≥ 3 chars
+POST   /catalog/import                       ProductCreate-shaped body + barcode, portions[], group_ids[] → creates product (source='catalog'), portions, nutrients, groups in one transaction; 409 { code: 'already_in_library', product_id } for a live duplicate
+```
+Errors use `{ "detail": { "code": ..., ... } }`: `catalog_unavailable` (503, `retry_after`), `rate_limited` (429), `invalid_barcode` / `invalid_query` (422), `catalog_not_found` (404), `already_in_library` (409).
 
 ### Groups
 ```
@@ -860,15 +878,15 @@ Deferred, later TODO. Blocked on enrolling in the Apple Developer Program (neede
 - [ ] Deploy web app (Vercel / Netlify)
 - [ ] Environment config (dev / prod)
 
-### Phase 8 — Product Portions & Public Catalog  *(📋 planned)*
+### Phase 8 — Product Portions & Public Catalog  *(Stages 1–4 shipped; Stage 5 pending)*
 - [x] `product_portions` table + CRUD (mirroring `meal_portions`); gram-based `serving_size`/`serving_unit` migrated into a default portion (migration 0014)
 - [x] Product log flow: pick a portion × count, or grams
 - [x] Meals follow products (`meal_ingredients.uses_own_values`), log entries freeze their own nutrition (`log_entries.nutrition`, `log_entry_meal_ingredients.nutrition`) — migrations 0016/0017
 - [x] Extended nutrition: `saturated_fat` column, `nutrients` + `product_nutrients` tables, `GET /nutrients`, meal-ingredient snapshot (0014/0015); Product page redesign (breakdown with %RI, vitamins & minerals with %NRV, per-portion view)
-- [ ] Backend OFF client (User-Agent, barcode lookup, search) with a barcode-keyed cache
-- [ ] `GET /catalog/search?q=` + `GET /catalog/barcode/:code` + import-into-library endpoint
-- [ ] "Search public catalog" entry point in Add Product; OFF attribution in the UI
-- [ ] Barcode → catalog lookup ahead of Claude Vision in the Phase 6 scan flow
+- [x] Backend OFF client (User-Agent, barcode lookup, search) with a barcode-keyed Postgres cache, rate limiter and circuit breaker (migration 0018)
+- [x] `GET /catalog/search?q=` + `GET /catalog/barcode/:code` + `POST /catalog/import`
+- [x] "Search public catalog" and "Scan barcode" entry points in Add Product; OFF attribution in search, draft card, product detail and Profile
+- [ ] Barcode → catalog lookup ahead of Claude Vision in the Phase 6 scan flow *(barcode scan + catalog lookup shipped; the Claude Vision fallback hook is `onScanLabelWithAI` on `LookupOutcomePanel`)*
 - [ ] (Optional) opt-in "Share to Open Food Facts" for user-created barcoded products
 
 ---
@@ -896,7 +914,7 @@ Deferred, later TODO. Blocked on enrolling in the Apple Developer Program (neede
 | 17 | Email changes: if a user's Google/Apple email changes, do we update `users.email`, or keep the email from sign-up? | Proposed: keep sign-up email; `user_auth_identities.email` is informational only |
 | 18 | Public catalog source: Open Food Facts only, or also USDA FoodData Central (CC0, US-focused, generic foods)? | Proposed: OFF only to start |
 | 19 | Publishing user-created products: contribute to OFF via its write API (one app account, or user-linked OFF accounts?), or run a NutriScan-hosted shared catalog? | Proposed: opt-in contribute to OFF |
-| 20 | OFF access at scale: API + cache, or nightly import of OFF's data export into Postgres? | Proposed: API + cache first, export import once traffic needs it |
+| 20 | OFF access at scale: API + cache, or nightly import of OFF's data export into Postgres? | **Status:** API + Postgres cache shipped (Phase 8); export import once traffic needs it |
 
 ---
 
