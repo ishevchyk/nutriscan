@@ -18,6 +18,17 @@ class Settings(BaseSettings):
     apple_key_id: str = ""
     apple_private_key: str = ""  # contents of the .p8 file
 
+    # Open Food Facts (Phase 8). Dev/tests use staging; production only when
+    # OFF_USE_STAGING=false.
+    off_enabled: bool = True
+    off_use_staging: bool = True
+    off_base_url: str = ""  # override; empty = derived from off_use_staging
+    off_search_url: str = "https://search.openfoodfacts.org"
+    off_search_backend: str = "search_a_licious"  # or "legacy"
+    off_contact_email: str = ""
+    off_staging_auth: str = "off:off"
+    app_version: str = "0.1.0"
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 

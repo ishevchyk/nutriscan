@@ -14,6 +14,7 @@ from app.models.log_entry import LogEntry
 from app.models.log_entry_meal_ingredient import LogEntryMealIngredient
 from app.models.user_settings import UserSettings
 from app.models.user_hidden_group import UserHiddenGroup
+from app.models.catalog import CatalogProduct, CatalogSearchCache
 
 __all__ = [
     "User",
@@ -33,4 +34,6 @@ __all__ = [
     "LogEntryMealIngredient",
     "UserSettings",
     "UserHiddenGroup",
+    "CatalogProduct",
+    "CatalogSearchCache",
 ]
