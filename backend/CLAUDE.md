@@ -45,6 +45,12 @@ Not yet implemented (see README section 6 for full column definitions) — the r
 - `user_goals` is a single overwritten row per user, no history (README Open Question #7 is still pending on versioning it — don't add versioning unless asked)
 - Still open (mobile UI, not backend): goal-setting screen, Log page daily view, global "+ Log" modal, editable-grams meal-logging flow, daily summary progress UI — see README Phase 4 checklist
 
+## Public catalog (Phase 8 — Open Food Facts)
+- Code lives in `app/catalog/` (client, cache, service, mapping, barcodes, rate limits) + `app/routers/catalog.py`. All OFF traffic goes through `OffClient` (`get_off_client` dependency): token buckets, 60 s circuit breaker, 5 s timeout, pinned `API_VERSION`. Tests inject a `httpx.MockTransport` client via `app.dependency_overrides[get_off_client]` (`tests/catalog_helpers.py`) — no live network; the one `live_off` test is opt-in (`pytest -m live_off`).
+- Structured errors for this feature: `HTTPException(detail={"code": ..., ...})` via `app.catalog.errors.api_error` — the rest of the API still uses plain string details.
+- `products.barcode` is normalized on write (`schemas/product.py`); catalog duplicate checks compare with leading zeros stripped so pre-normalization rows still match. Legacy rows were *not* migrated.
+- `catalog_products` / `catalog_search_cache` are shared caches (no `user_id`); expired rows are purged by `jobs.py`.
+
 ## Offline sync
 There is no `/sync` endpoint. Offline-first sync (SQLite queue on mobile,
 IndexedDB on web) was built once and deliberately removed — the offline

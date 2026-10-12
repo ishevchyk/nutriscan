@@ -3,6 +3,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, field_validator
 
+from app.catalog.barcodes import normalize_barcode
 from app.sanitize import sanitize_rich_text
 from app.schemas.group import GroupOut
 from app.schemas.product_portion import ProductPortionOut
@@ -33,6 +34,11 @@ class ProductCreate(BaseModel):
     def sanitize_notes(cls, v: str | None) -> str | None:
         return sanitize_rich_text(v)
 
+    @field_validator("barcode")
+    @classmethod
+    def _normalize_barcode(cls, v: str | None) -> str | None:
+        return normalize_barcode(v)
+
 
 class ProductUpdate(BaseModel):
     name: str | None = None
@@ -59,6 +65,11 @@ class ProductUpdate(BaseModel):
     @classmethod
     def sanitize_notes(cls, v: str | None) -> str | None:
         return sanitize_rich_text(v)
+
+    @field_validator("barcode")
+    @classmethod
+    def _normalize_barcode(cls, v: str | None) -> str | None:
+        return normalize_barcode(v)
 
     @field_validator("is_favorite")
     @classmethod
