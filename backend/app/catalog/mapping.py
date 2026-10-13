@@ -22,6 +22,7 @@ FROM_GRAMS = {"g": 1.0, "mg": 1e3, "µg": 1e6, "ug": 1e6}
 CORE_KEYS = {"energy", "energy-kcal", "energy-kj", "proteins", "fat", "carbohydrates", "fiber", "sugars", "salt",
              "sodium", "saturated-fat"}
 _LIQUID_QUANTITY = re.compile(r"\d\s*(ml|cl|dl|l)\b", re.IGNORECASE)
+_SERVING_COUNT = re.compile(r"^\s*(\d+(?:[.,]\d+)?)\s*(?:portions?|servings?|pieces?|pcs|slices?)\b", re.IGNORECASE)
 
 
 def _num(value) -> float | None:
@@ -66,6 +67,13 @@ def _calories(n: dict, serving_g: float | None) -> float | None:
         if kcal is None and kj is not None:
             kcal = kj / KJ_PER_KCAL
     return None if kcal is None else float(round(kcal))
+
+
+def _serving_count(label: str) -> float | None:
+    """N from a serving label like "5 portions (230 g)"; None unless N > 1."""
+    match = _SERVING_COUNT.match(label)
+    count = float(match.group(1).replace(",", ".")) if match else 0
+    return count if count > 1 else None
 
 
 def is_liquid(raw: dict) -> bool:
@@ -152,7 +160,10 @@ def map_product(
     portions = []
     if serving_g:
         label = (raw.get("serving_size") or "").strip()
-        portions.append(DraftPortion(name=(label or "1 serving")[:100], grams=round(serving_g, 2), is_default=True))
+        count = _serving_count(label)
+        if count:  # label covers N portions: default to one, keep the whole pack too
+            portions.append(DraftPortion(name="1 portion", grams=round(serving_g / count, 2), is_default=True))
+        portions.append(DraftPortion(name=(label or "1 serving")[:100], grams=round(serving_g, 2), is_default=not count))
 
     group = suggest_group(raw.get("categories_tags"))
     return CatalogProductDraft(

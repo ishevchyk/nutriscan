@@ -46,6 +46,19 @@ async def test_12_digit_upc_is_normalized_and_serving_becomes_default_portion():
     assert d.notes == "<p>Pack size: 155 g</p>"
 
 
+async def test_multi_portion_serving_adds_single_portion_default():
+    raw = copy.deepcopy(load_fixture("product_upc_a_12_digit")["product"])
+    raw.update(serving_size="5 portions (230 g)", serving_quantity=230)
+    d = map_product(raw, UNITS)
+    assert [(p.name, p.grams, p.is_default) for p in d.portions] == [
+        ("1 portion", 46.0, True),
+        ("5 portions (230 g)", 230.0, False),
+    ]
+    raw.update(serving_size="1 portion (46 g)", serving_quantity=46)
+    d = map_product(raw, UNITS)
+    assert [(p.name, p.grams, p.is_default) for p in d.portions] == [("1 portion (46 g)", 46.0, True)]
+
+
 async def test_liquid_gets_note_and_no_gram_portion():
     d = draft("product_cola_liquid")
     assert "Nutrition is per 100 ml" in d.notes
