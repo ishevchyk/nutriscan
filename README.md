@@ -841,7 +841,7 @@ _Social sign-in, originally part of this phase, is split out into Phase 5b below
 - [x] System group visibility screen (separate from custom group management, links to it)
 - [x] Account: change password, log out, delete account (two-step, typed "DELETE") — ship now; sign-in methods screen (connect/disconnect Google & Apple) is *later TODO*, blocked with the rest of social sign-in above
 - [ ] Apply `user_settings.units` to every weight/height/quantity display across the app — done for Profile body stats and meal screens (`app/edit-profile.tsx`, `app/(tabs)/profile.tsx`, `app/add-meal.tsx`, `app/meal/[id].tsx`); not yet wired into product or log-entry gram displays
-- [ ] Admin section, rendered only for `role = 'admin'`: system groups, user management (incl. sign-in methods column), stats
+- [x] Admin section, rendered only for `role = 'admin'`: system groups, user management (incl. sign-in methods column), stats (`app/admin.tsx`, `admin-users.tsx`, `admin-groups.tsx`)
 
 ### Phase 5b — Social Sign-In  *(⏸ blocked — Apple Developer Program enrollment)*
 
@@ -905,7 +905,7 @@ Deferred, later TODO. Blocked on enrolling in the Apple Developer Program (neede
 | 8 | Delete account: hard-delete immediately, or route through the same 30-day recovery pattern as products/meals? Either way, deleting also removes linked Google/Apple identities (and should revoke the Apple token, which Apple requires for account deletion) | **Pending** |
 | 9 | Notification settings: no push infra exists yet — is the toggle a stub for future use, or does Phase 5 need to build actual delivery? | Stub only for now — see Phase 5 |
 | 10 | Global "+ Log" modal: should the meal-slot-selection step default to a guess based on current time of day (e.g. auto-select "Lunch" at 1pm, user can still change it), or always start unselected? | **Pending** |
-| 11 | Admin scope: which proposed actions (§3.8 — system groups, user management, stats) ship in Phase 5, and are others needed? | **Pending** |
+| 11 | Admin scope: which proposed actions (§3.8 — system groups, user management, stats) ship in Phase 5, and are others needed? | **Resolved** — all three ship (`/admin/*` + mobile Admin screens) |
 | 12 | Should admins ever see a user's food data (e.g. for support), or stay limited to account status + app-wide config? | Proposed: no access |
 | 13 | Weight history: keep only current weight, or track weigh-ins over time (also a natural input for a goal calculator / progress chart)? | Current only for now |
 | 14 | `sex` field: which options and wording? Needed for BMR formulas in a goal calculator, should include a "prefer not to say" option | **Pending** |

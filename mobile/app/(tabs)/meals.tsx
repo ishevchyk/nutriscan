@@ -12,6 +12,7 @@ import { MealCard } from '../../components/meals/MealCard';
 export default function MealsScreen() {
   const userId = useAuthStore((s) => s.userId);
   const { meals, loaded, loadMeals } = useMealStore();
+  const [query, setQuery] = useState('');
   const [initializing, setInitializing] = useState(true);
   const colors = useThemeColor();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -23,6 +24,8 @@ export default function MealsScreen() {
     }
   }, [userId]);
 
+  const filtered = meals.filter((m) => m.name.toLowerCase().includes(query.trim().toLowerCase()));
+
   return (
     <View style={styles.container}>
       <View style={styles.metaRow}>
@@ -33,7 +36,7 @@ export default function MealsScreen() {
         </Pressable>
       </View>
 
-      <TextInput placeholder="Search meals..." style={styles.searchInput} />
+      <TextInput placeholder="Search meals..." style={styles.searchInput} onChangeText={setQuery}/>
 
       {initializing && <ActivityIndicator size="large" color={colors.primary} />}
 
@@ -42,7 +45,7 @@ export default function MealsScreen() {
       )}
 
       <FlatList
-        data={meals}
+        data={filtered}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => <MealCard item={item} />}
       />

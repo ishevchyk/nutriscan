@@ -12,6 +12,7 @@ import { useProfileStore } from '../../store/profileStore';
 import { useGoalStore } from '../../store/goalStore';
 import { useGroupStore } from '../../store/groupStore';
 import { useAuthStore } from '../../store/authStore';
+import { useAdminStore } from '../../store/adminStore';
 import { Avatar } from '../../components/Avatar';
 import { activityLabel, sexLabel } from '../../constants/profileOptions';
 import { cmToIn, kgToLb, round1 } from '../../utils/unitConversion';
@@ -34,6 +35,9 @@ export default function ProfileScreen() {
   const { profile, loaded: profileLoaded, loadProfile } = useProfileStore();
   const { goal, isSet: goalIsSet, loaded: goalLoaded, loadGoal } = useGoalStore();
   const { manageableGroups, hiddenGroupIds, hiddenLoaded, loadHiddenGroupsScreen } = useGroupStore();
+  const userId = useAuthStore((s) => s.userId);
+  const { isAdmin, roleUserId, loadRole } = useAdminStore();
+  const showAdmin = isAdmin && roleUserId === userId;
   const [settingsError, setSettingsError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -42,6 +46,10 @@ export default function ProfileScreen() {
     if (!goalLoaded) loadGoal();
     if (!hiddenLoaded) loadHiddenGroupsScreen();
   }, []);
+
+  useEffect(() => {
+    if (userId && roleUserId !== userId) loadRole(userId);
+  }, [userId, roleUserId]);
 
   async function handleUpdateSettings(patch: Parameters<typeof updateSettings>[0]) {
     setSettingsError(null);
@@ -220,6 +228,19 @@ export default function ProfileScreen() {
         </View>
         <MaterialDesignIcons name="chevron-right" size={20} color={colors.error} />
       </Pressable>
+
+      {showAdmin && (
+        <>
+          <Text style={[styles.sectionLabel, styles.sectionSpacing]}>Admin</Text>
+          <Pressable style={styles.row} onPress={() => router.push('/admin')}>
+            <View style={styles.rowText}>
+              <Text style={styles.rowLabel}>Admin tools</Text>
+              <Text style={styles.rowHint}>Users, system groups and app stats</Text>
+            </View>
+            <MaterialDesignIcons name="chevron-right" size={20} color={colors.textSecondary} />
+          </Pressable>
+        </>
+      )}
 
       <Text style={[styles.sectionLabel, styles.sectionSpacing]}>About</Text>
       {PRIVACY_POLICY_URL ? (
