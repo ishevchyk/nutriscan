@@ -804,33 +804,33 @@ Disabled account (users.disabled_at set)
 - [x] Filters sheet (groups match-any, brands, nutrition presets, max kcal), Sort sheet, favourites pill + heart on cards
 - [x] Group filtering moved client-side — the product store always holds the full library
 
-### Phase 5 — Profile, Settings & Admin  *(🚧 in progress — Admin and a few small items left)*
+### Phase 5 — Profile, Settings & Admin  *(🚧 in progress — a few small items left)*
 
 _Social sign-in, originally part of this phase, is split out into Phase 5b below because it is blocked on Apple Developer Program enrollment. The Profile screen's Account → sign-in methods row waits on it._
 
 **Backend — data**
-- [ ] `users.role` (`'user'` | `'admin'`, default `'user'`) + `users.disabled_at` columns + migration
+- [x] `users.role` (`'user'` | `'admin'`, default `'user'`) + `users.disabled_at` columns + migration (0019)
 - [x] `user_profiles` table + migration
 - [x] `user_settings` table + migration (units, timezone, notifications)
 - [x] `user_hidden_groups` table + migration
-- [ ] CLI command to create/promote the first admin (no API path to admin)
+- [x] CLI command to create/promote the first admin (`python -m scripts.promote_admin <email> [--demote]`; no API path to admin)
 
 **Backend — endpoints**
-- [ ] `GET /me` (user + profile + settings + goals in one response)
+- [x] `GET /me` (user + profile + settings + goals in one response)
 - [x] `GET`/`PATCH /profile`
 - [x] `GET`/`PATCH /settings`
 - [x] Change password + delete account endpoints (shipped as `POST /auth/change-password` + `DELETE /auth/me`, confirmed by typed "DELETE" client-side — endpoint path differs from the `/auth/account` spec'd above, no password required to delete)
 - [x] Hide/un-hide system group endpoints; `GET /groups` excludes hidden ones by default (`?include_hidden=true` to include them)
 - [x] `/log`, `/log/summary`, `/log/logged-days` compute day boundaries from `user_settings.timezone`
-- [ ] Login and refresh reject disabled accounts — blocked on `users.disabled_at` above
+- [x] Login, refresh and live access tokens reject disabled accounts; disabling revokes refresh tokens
 - [ ] Avatar upload — blocked on Open Questions #4
 
 **Backend — admin**
-- [ ] `require_admin` dependency (DB role check) applied to every `/admin/*` route
-- [ ] System group create/rename endpoints
-- [ ] User list/search + role/disable endpoint, with self and last-admin guardrails
-- [ ] Stats endpoint
-- [ ] Tests: non-admin gets 403 on every `/admin/*` route; guardrail cases
+- [x] `require_admin` dependency (DB role check) applied to every `/admin/*` route
+- [x] System group create/rename endpoints
+- [x] User list/search + role/disable endpoint, with self and last-admin guardrails
+- [x] Stats endpoint
+- [x] Tests: non-admin gets 403 on every `/admin/*` route; guardrail cases
 
 **UI — Profile tab**
 - [x] Profile tab + root screen with section layout (header, body stats, goals, preferences, groups, account)

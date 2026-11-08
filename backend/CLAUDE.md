@@ -12,8 +12,15 @@
 Implemented: `users`, `products`, `refresh_tokens`, `groups`, `product_groups`, `meals`, `meal_ingredients`, `meal_portions` (full CRUD via `meals.py` router, including ingredients and portions sub-resources), `user_goals` (`goals.py`), `log_entries`, `log_entry_meal_ingredients` (`log.py` + `tracking.py`), `user_settings` (`settings.py`), `user_hidden_groups` (endpoints in `groups.py`), `user_profiles` (`profile.py`), `change-password`/`delete-account` (in `auth.py`).
 
 Not yet implemented (see README section 6 for full column definitions) — the rest of README Phase 5 ("Profile, Settings & Admin") and Phase 5b ("Social Sign-In"), out of scope for the slices above:
-- `users.role` / `users.disabled_at`, `user_auth_identities` (social sign-in — separately deferred, blocked on Apple Developer Program enrollment)
-- the full `/admin/*` router, avatar/photo upload (no image storage integration exists)
+- `user_auth_identities` (social sign-in — separately deferred, blocked on Apple Developer Program enrollment)
+- avatar/photo upload (no image storage integration exists)
+
+## Admin (Phase 5, backend implemented — UI still pending)
+- `users.role` (`user`|`admin`, check constraint) and `users.disabled_at`. `require_admin` (`app/dependencies.py`) reads the role from the DB each request, never the token. The first admin is made with `python -m scripts.promote_admin <email>`; there is no API path to it.
+- `/admin/*` (`app/routers/admin.py`, router-level `require_admin`): `POST`/`PATCH /admin/groups` (system groups only; no delete), `GET /admin/users?q=`, `PATCH /admin/users/:id` (`role`, `disabled`), `DELETE /admin/users/:id` (full purge via `app/accounts.py::purge_user`, shared with `DELETE /auth/me`; refuses yourself and admins — demote first), `GET /admin/stats` (counts only — admins never see a user's food data).
+- Guardrails: an admin can't demote/disable themselves or the last active admin. Disabling sets `disabled_at` and revokes the user's refresh tokens; `get_current_user`, login and refresh all reject disabled users. `is_active` is the older flag and is still checked too.
+- `GET /me` (`app/routers/me.py`) bundles user (incl. `role`), profile, settings and goals (`goals` is null when unset).
+- Tests that create system groups must delete them afterwards — other tests count the shared seeded set.
 
 ## User Settings (Phase 5 slice, backend implemented — UI still pending)
 - Endpoint groups: `/settings` (GET/PATCH — PATCH creates the row on first call), `GET /groups/hidden` + `POST`/`DELETE /groups/:id/hide`
@@ -28,7 +35,7 @@ Not yet implemented (see README section 6 for full column definitions) — the r
 - Endpoint groups: `/profile` (GET/PATCH — same upsert-on-first-PATCH pattern as `/settings`/`/goals`), `POST /auth/change-password`, `DELETE /auth/me`
 - `user_profiles` is keyed on `user_id` like `user_settings`, but every field is nullable with no default (all optional) — `GET /profile` never 404s, same no-meaningful-"unset"-state reasoning as `GET /settings`; it returns `User.email` combined with the `user_profiles` row (built by hand in the router, not a single ORM-backed response model)
 - `POST /auth/change-password` reuses `auth.py`'s existing `pwd_context`/`_hash_password`/`_verify_password` — 401 on a wrong current password, 422 (via Pydantic `min_length=8`) on too-short new passwords; does not revoke existing refresh tokens
-- `DELETE /auth/me` hard-deletes, in order, the user's `log_entries` → `meals` → `products` → custom `groups` (never system groups) → `user_goals` → `user_settings` → `user_profiles` → `refresh_tokens` → the `users` row itself, in one transaction — most `user_id` FKs in this schema have no `ON DELETE` behavior (Postgres default `RESTRICT`), so each needs an explicit delete; their own children (meal_ingredients, meal_portions, product_groups, product_unit_conversions, log_entry_meal_ingredients) cascade automatically once the parent row is gone. Deleting all `refresh_tokens` for the user is the session-revoke step.
+- `DELETE /auth/me` (via `app.accounts.purge_user`) hard-deletes, in order, the user's `log_entries` → `meals` → `products` → custom `groups` (never system groups) → `user_goals` → `user_settings` → `user_profiles` → `refresh_tokens` → the `users` row itself, in one transaction — most `user_id` FKs in this schema have no `ON DELETE` behavior (Postgres default `RESTRICT`), so each needs an explicit delete; their own children (meal_ingredients, meal_portions, product_groups, product_unit_conversions, log_entry_meal_ingredients) cascade automatically once the parent row is gone. Deleting all `refresh_tokens` for the user is the session-revoke step.
 - Avatar/photo upload is out of scope — no image storage integration exists; mobile renders initials-only avatars
 
 ## Tracking & Goals (Phase 4, backend implemented — UI still pending)

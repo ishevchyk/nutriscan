@@ -10,13 +10,7 @@ from app.schemas.settings import SettingsOut, SettingsUpdate
 router = APIRouter(prefix="/settings", tags=["settings"])
 
 
-@router.get("", response_model=SettingsOut)
-async def get_settings(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    result = await db.execute(select(UserSettings).where(UserSettings.user_id == current_user.id))
-    row = result.scalar_one_or_none()
+def _build_out(current_user: User, row: UserSettings | None) -> SettingsOut | UserSettings:
     if row is None:
         # Every column has a DB default (README §6) -- there's no meaningful
         # "unset" state, so return the defaults instead of 404ing before the
@@ -30,6 +24,15 @@ async def get_settings(
             updated_at=None,
         )
     return row
+
+
+@router.get("", response_model=SettingsOut)
+async def get_settings(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(select(UserSettings).where(UserSettings.user_id == current_user.id))
+    return _build_out(current_user, result.scalar_one_or_none())
 
 
 @router.patch("", response_model=SettingsOut)

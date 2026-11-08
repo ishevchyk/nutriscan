@@ -5,7 +5,7 @@ from fastapi import FastAPI
 
 from app.catalog.off_client import close_off_client
 from app.jobs import run_purge_loop
-from app.routers import auth, products, meals, ai, groups, goals, log, profile, nutrients, catalog
+from app.routers import auth, products, meals, ai, groups, goals, log, profile, nutrients, catalog, me, admin
 from app.routers import settings as settings_router
 
 
@@ -30,6 +30,8 @@ app.include_router(log.router)
 app.include_router(settings_router.router)
 app.include_router(profile.router)
 app.include_router(catalog.router)
+app.include_router(me.router)
+app.include_router(admin.router)
 
 
 @app.get("/health", tags=["health"])
