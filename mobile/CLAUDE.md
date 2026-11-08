@@ -38,6 +38,9 @@ database schema, API endpoints, and AI integration details.
 - Portions (`PortionsSection.tsx`, `productStore` portion actions) write straight to the API. The log flow's Product step can log portion × count; it still posts plain `quantity_grams`.
 - Meal ingredients follow their product unless edited (`uses_own_values`; the ingredient card shows an EDITED tag with Reset to product values). Log entries are frozen at log time (`entry.name`), so editing a product never changes past days. The mobile meal UI only passes extended nutrients through (no editing/display of extended totals yet).
 
+## Admin (Phase 5)
+- The Profile tab shows an **Admin** section only when `GET /me` says `role = 'admin'` (`store/adminStore.ts`: `isAdmin`, cached per `roleUserId` so another account on the same device never inherits it). Screens: `app/admin.tsx` (stats + links), `app/admin-users.tsx` (debounced email search, make/remove admin, disable/enable with confirm, delete user + all data after typing their email; no actions on your own row), `app/admin-groups.tsx` (create/rename system groups; no delete). The backend enforces everything — hiding the UI is cosmetic. Backend errors (`detail` string, e.g. last-admin guard) are surfaced via `adminErrorMessage`.
+
 ## AI scanning flow
 1. User taps Scan tab → camera opens
 2. Photo captured → base64 encoded

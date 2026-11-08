@@ -125,6 +125,30 @@ export default function RootLayout() {
                     }}
                 />
                 <Stack.Screen
+                    name="admin"
+                    options={{
+                        header: () => (
+                            <ScreenHeader headerTitle="Admin" rightAction={backAction('Profile')} />
+                        ),
+                    }}
+                />
+                <Stack.Screen
+                    name="admin-users"
+                    options={{
+                        header: () => (
+                            <ScreenHeader headerTitle="Users" rightAction={backAction('Admin')} />
+                        ),
+                    }}
+                />
+                <Stack.Screen
+                    name="admin-groups"
+                    options={{
+                        header: () => (
+                            <ScreenHeader headerTitle="System groups" rightAction={backAction('Admin')} />
+                        ),
+                    }}
+                />
+                <Stack.Screen
                     name="change-password"
                     options={{
                         header: () => (
