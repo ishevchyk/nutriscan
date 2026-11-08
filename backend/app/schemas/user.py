@@ -3,6 +3,10 @@ from datetime import datetime
 
 from pydantic import BaseModel, EmailStr, Field
 
+from app.schemas.goal import GoalOut
+from app.schemas.profile import ProfileOut
+from app.schemas.settings import SettingsOut
+
 
 class UserCreate(BaseModel):
     email: EmailStr
@@ -18,6 +22,7 @@ class UserOut(BaseModel):
     id: uuid.UUID
     email: str
     is_active: bool
+    role: str
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -36,3 +41,11 @@ class RefreshRequest(BaseModel):
 class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str = Field(min_length=8)
+
+
+
+class MeOut(BaseModel):
+    user: UserOut
+    profile: ProfileOut
+    settings: SettingsOut
+    goals: GoalOut | None

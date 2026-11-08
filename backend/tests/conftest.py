@@ -1,6 +1,7 @@
 import uuid
 
 import pytest_asyncio
+from sqlalchemy import update
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -10,6 +11,7 @@ from app.dependencies import get_db
 from app.main import app
 from app.models.group import Group
 from app.models.nutrient import Nutrient
+from app.models.user import User
 from app.nutrient_catalog import NUTRIENT_SEED
 
 SYSTEM_GROUP_NAMES = [
@@ -82,3 +84,14 @@ async def auth_headers(client):
 @pytest_asyncio.fixture(loop_scope="session")
 async def second_user_headers(client):
     return await _register_user(client)
+
+
+@pytest_asyncio.fixture(loop_scope="session")
+async def admin_headers(client):
+    """Fresh admin user. There's no API path to admin, so promote via the DB."""
+    email = f"admin-{uuid.uuid4()}@example.com"
+    resp = await client.post("/auth/register", json={"email": email, "password": "testpass123"})
+    async with TestSessionLocal() as session:
+        await session.execute(update(User).where(User.email == email).values(role="admin"))
+        await session.commit()
+    return {"Authorization": f"Bearer {resp.json()['access_token']}"}

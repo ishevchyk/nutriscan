@@ -32,8 +32,16 @@ async def get_current_user(
     from app.models.user import User
     from sqlalchemy import select
 
-    result = await db.execute(select(User).where(User.id == user_id, User.is_active.is_(True)))
+    result = await db.execute(select(User).where(User.id == user_id, User.is_active.is_(True), User.disabled_at.is_(None)))
     user = result.scalar_one_or_none()
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
     return user
+
+
+async def require_admin(current_user=Depends(get_current_user)):
+    # Role is read from the DB row on every request, never from the token,
+    # so demoting or disabling an admin takes effect immediately.
+    if current_user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return current_user
