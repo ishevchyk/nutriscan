@@ -97,6 +97,7 @@ class ProductOut(BaseModel):
     serving_unit: str | None
     notes: str | None
     source: str | None
+    source_meal_id: uuid.UUID | None = None
     created_at: datetime
     updated_at: datetime
     deleted_at: datetime | None
