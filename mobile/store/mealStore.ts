@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { api } from '../lib/api';
-import { DELETED_RETENTION_DAYS, NewProduct, useProductStore } from './productStore';
+import { DELETED_RETENTION_DAYS, NewProduct, Product, useProductStore } from './productStore';
 
 export { DELETED_RETENTION_DAYS };
 
@@ -72,6 +72,8 @@ export interface Meal {
     per_100g: NutritionOut;
   };
   portions: MealPortion[];
+  // Live library product created from this meal via convertToProduct, if any.
+  linked_product_id: string | null;
 }
 
 export type LinkedIngredientInput = { product_id: string; input_amount: number; input_unit: string };
@@ -160,10 +162,24 @@ interface MealState {
   unlinkIngredient: (mealId: string, ingredientId: string) => Promise<void>;
   updateIngredientValues: (mealId: string, ingredientId: string, patch: Omit<IngredientPatch, 'product_id'>) => Promise<void>;
   addIngredientToLibrary: (mealId: string, ingredientId: string) => Promise<void>;
+  /** Creates a "From custom meal" library product from the meal's current nutrition. */
+  convertToProduct: (mealId: string) => Promise<Product>;
+  /** Re-copies the meal's current nutrition/portions onto its linked product. */
+  syncProduct: (mealId: string) => Promise<Product>;
 
   addPortion: (mealId: string, input: NewPortion) => Promise<void>;
   updatePortion: (mealId: string, portionId: string, patch: PortionPatch) => Promise<void>;
   removePortion: (mealId: string, portionId: string) => Promise<void>;
+}
+
+// Keeps the shared product list current without a refetch (the Products tab only
+// loads when `loaded` is false).
+function upsertLibraryProduct(product: Product) {
+  const { products } = useProductStore.getState();
+  const exists = products.some((p) => p.id === product.id);
+  useProductStore.setState({
+    products: exists ? products.map((p) => (p.id === product.id ? product : p)) : [product, ...products],
+  });
 }
 
 export const useMealStore = create<MealState>((set, get) => ({
@@ -290,6 +306,20 @@ export const useMealStore = create<MealState>((set, get) => ({
     };
     const product = await useProductStore.getState().addProduct(newProduct);
     await get().relinkIngredient(mealId, ingredientId, product.id);
+  },
+
+  convertToProduct: async (mealId) => {
+    const { data } = await api.post<Product>(`/meals/${mealId}/convert-to-product`);
+    upsertLibraryProduct(data);
+    await get().fetchMeal(mealId);
+    return data;
+  },
+
+  syncProduct: async (mealId) => {
+    const { data } = await api.post<Product>(`/meals/${mealId}/sync-product`);
+    upsertLibraryProduct(data);
+    await get().fetchMeal(mealId);
+    return data;
   },
 
   addPortion: async (mealId, input) => {

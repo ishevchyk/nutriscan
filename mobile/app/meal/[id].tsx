@@ -12,6 +12,8 @@ import { useMealForm, MealFormValues } from '../../hooks/useMealForm';
 import { useUnitConversionGuard } from '../../hooks/useUnitConversionGuard';
 import { useMealStore } from '../../store/mealStore';
 import { afterSheetClose } from '../../utils/afterSheetClose';
+import { isAlreadyConverted, mealProductErrorMessage } from '../../utils/mealProductErrors';
+import { showToast } from '../../store/toastStore';
 import { compactNutrients } from '../../utils/nutrientFacts';
 import { NutritionSummaryCard } from '../../components/meals/NutritionSummaryCard';
 import { IngredientCard } from '../../components/meals/IngredientCard';
@@ -40,6 +42,8 @@ export default function MealDetail() {
     unlinkIngredient,
     updateIngredientValues,
     addIngredientToLibrary,
+    convertToProduct,
+    syncProduct,
     addPortion,
     updatePortion,
     removePortion,
@@ -54,6 +58,7 @@ export default function MealDetail() {
   const [managedKey, setManagedKey] = useState<string | null>(null);
   const [addSheetOpen, setAddSheetOpen] = useState(false);
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [productBusy, setProductBusy] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -77,6 +82,21 @@ export default function MealDetail() {
     if (!id) return;
     await updateMeal(id, data);
     setMode('view');
+  }
+
+  async function onConvertOrSync() {
+    if (!id || !meal || productBusy) return;
+    const isSync = meal.linked_product_id != null;
+    setProductBusy(true);
+    try {
+      const product = await (isSync ? syncProduct(id) : convertToProduct(id));
+      showToast({ message: isSync ? `Updated "${product.name}" in your products` : `Added "${product.name}" to your products` });
+    } catch (err) {
+      if (!isSync && isAlreadyConverted(err)) await fetchMeal(id); // stale screen: switch to the update action
+      Alert.alert(isSync ? "Couldn't update product" : "Couldn't convert meal", mealProductErrorMessage(err));
+    } finally {
+      setProductBusy(false);
+    }
   }
 
   function onDelete() {
@@ -323,6 +343,20 @@ export default function MealDetail() {
             >
               <Text style={styles.trackerButtonText}>Add to Day Tracker</Text>
             </Pressable>
+            <Pressable
+              style={[styles.productButton, productBusy && styles.productButtonDisabled]}
+              onPress={onConvertOrSync}
+              disabled={productBusy}
+            >
+              <Text style={styles.productButtonText}>
+                {meal.linked_product_id ? 'Update product from meal' : 'Convert to product'}
+              </Text>
+            </Pressable>
+            {meal.linked_product_id && (
+              <Pressable onPress={() => router.push(`/product/${meal.linked_product_id}`)}>
+                <Text style={styles.productLink}>Open product</Text>
+              </Pressable>
+            )}
           </View>
         )}
 
@@ -524,6 +558,24 @@ function createStyles(colors: ThemeColors) {
       color: colors.onPrimary,
       fontSize: Typography.fontSize.base,
       fontWeight: Typography.fontWeight.semibold,
+    },
+    productButton: {
+      borderWidth: 1,
+      borderColor: colors.primary,
+      borderRadius: Radii.lg,
+      paddingVertical: Spacing.lg,
+      alignItems: 'center',
+    },
+    productButtonDisabled: { opacity: 0.5 },
+    productButtonText: {
+      color: colors.primary,
+      fontSize: Typography.fontSize.base,
+      fontWeight: Typography.fontWeight.semibold,
+    },
+    productLink: {
+      color: colors.primary,
+      fontSize: Typography.fontSize.sm,
+      textAlign: 'center',
     },
     sectionHeader: {
       flexDirection: 'row',
