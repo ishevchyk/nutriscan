@@ -200,5 +200,7 @@ class MealDetailOut(BaseModel):
     ingredients: list[MealIngredientOut]
     nutrition: MealNutritionOut
     portions: list[MealPortionDetailOut]
+    # Live product created from this meal via convert-to-product, if any.
+    linked_product_id: uuid.UUID | None = None
 
     model_config = {"from_attributes": True}

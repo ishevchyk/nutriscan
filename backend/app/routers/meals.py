@@ -5,15 +5,18 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.catalog.errors import api_error
 from app.dependencies import get_current_user, get_db
+from app.models.nutrient import ProductNutrient
 from app.models.product import Product
+from app.models.product_portion import ProductPortion
 from app.models.product_unit_conversions import ProductUnitConversion
 from app.models.meal import Meal
 from app.models.meal_ingredient import MealIngredient
 from app.models.meal_portion import MealPortion
 from app.models.user import User
 from app.meal_ingredients import ResolvedIngredient, copy_values_to_row, resolve_ingredients
-from app.nutrition import MACROS, calculate_meal_nutrition
+from app.nutrition import MACROS, calculate_meal_nutrition, compute_reference_grams
 from app.schemas.meal import (
     MealCreate,
     MealDetailOut,
@@ -23,9 +26,15 @@ from app.schemas.meal import (
     MealListItemOut,
     MealUpdate,
 )
+from app.routers.products import _apply_nutrients, _hydrate
+from app.schemas.product import ProductOut
 from app.schemas.meal_portion import MealPortionCreate, MealPortionOut, MealPortionUpdate
 
 router = APIRouter(prefix="/meals", tags=["meals"])
+
+CUSTOM_MEAL_BRAND = "From custom meal"
+CUSTOM_MEAL_SOURCE = "custom_meal"
+OPTIONAL_MACROS = ("fiber", "sugar", "salt", "saturated_fat")
 
 
 async def _get_owned_meal(db: AsyncSession, meal_id: UUID, current_user: User) -> Meal:
@@ -114,11 +123,35 @@ async def _build_meal_detail(db: AsyncSession, meal: Meal) -> Meal:
     meal.nutrition = {"per_meal": nutrition["per_meal"], "per_100g": nutrition["per_100g"]}
     for portion in meal.portions:
         portion.nutrition = nutrition["portions"][portion.id]
+    linked = await _get_linked_product(db, meal)
+    meal.linked_product_id = linked.id if linked else None
     return meal
 
 
+async def _get_linked_product(db: AsyncSession, meal: Meal) -> Product | None:
+    """The live product created from this meal by convert-to-product, if any."""
+    result = await db.execute(
+        select(Product)
+        .where(
+            Product.source_meal_id == meal.id,
+            Product.user_id == meal.user_id,
+            Product.deleted_at.is_(None),
+        )
+        .order_by(Product.created_at.desc())
+        .limit(1)
+    )
+    return result.scalars().first()
+
+
+def _reject_self_reference(product: Product, meal_id: UUID | None) -> None:
+    """A meal can't use the product made from itself: its totals would depend on
+    themselves (and a re-sync would feed back into the meal)."""
+    if meal_id is not None and product.source_meal_id == meal_id:
+        raise api_error(status.HTTP_400_BAD_REQUEST, "circular_ingredient")
+
+
 async def _resolve_ingredient_snapshot(
-    db: AsyncSession, item: MealIngredientIn, current_user: User
+    db: AsyncSession, item: MealIngredientIn, current_user: User, meal_id: UUID | None = None
 ) -> dict:
     """Linked ingredients (product_id set) are created following the product:
     only the link and a fallback name/brand are stored, no values -- any
@@ -137,6 +170,7 @@ async def _resolve_ingredient_snapshot(
         product = result.scalar_one_or_none()
         if not product:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="product_id is invalid")
+        _reject_self_reference(product, meal_id)
         return {
             "product_id": product.id,
             "name": product.name,
@@ -351,7 +385,7 @@ async def add_ingredient(
     current_user: User = Depends(get_current_user),
 ):
     meal = await _get_owned_meal(db, meal_id, current_user)
-    snapshot = await _resolve_ingredient_snapshot(db, body, current_user)
+    snapshot = await _resolve_ingredient_snapshot(db, body, current_user, meal.id)
     grams = await _resolve_ingredient_grams(
         db,
         product_id=snapshot["product_id"],
@@ -408,6 +442,7 @@ async def update_ingredient(
             product = result.scalar_one_or_none()
             if not product:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="product_id is invalid")
+            _reject_self_reference(product, meal_id)
             ingredient.product_id = product.id
             ingredient.name = product.name
             ingredient.brand = product.brand
@@ -532,3 +567,105 @@ async def delete_portion(
     portion = await _get_owned_portion(db, meal_id, portion_id, current_user)
     await db.delete(portion)
     await db.commit()
+
+
+def _optional_total(ingredients, macro: str, per_100g_value: float) -> float | None:
+    """Fiber/sugar/salt/sat-fat stay null (unknown) when no ingredient knows them,
+    instead of showing a computed 0."""
+    return per_100g_value if any(getattr(i, macro) is not None for i in ingredients) else None
+
+
+async def _meal_product_values(db: AsyncSession, meal: Meal) -> dict:
+    """Per-100g values (and portions) of a meal, shaped for a Product row."""
+    await _build_meal_detail(db, meal)
+    if not meal.ingredients:
+        raise api_error(status.HTTP_400_BAD_REQUEST, "meal_has_no_ingredients")
+    if compute_reference_grams(meal.ingredients, meal.cooked_weight_grams) <= 0:
+        raise api_error(status.HTTP_400_BAD_REQUEST, "meal_has_no_weight")
+    per_100g = meal.nutrition["per_100g"]
+    partial = set(per_100g["nutrients_partial"])
+    macros = {m: per_100g[m] for m in ("calories", "protein", "fat", "carbs")}
+    for macro in OPTIONAL_MACROS:
+        macros[macro] = _optional_total(meal.ingredients, macro, per_100g[macro])
+    return {
+        "macros": macros,
+        # Extended codes some ingredient doesn't know are left out (unknown), never a false 0.
+        "nutrients": {c: a for c, a in per_100g["nutrients"].items() if c not in partial},
+        "portions": [(p.name, p.grams, p.is_default) for p in meal.portions],
+    }
+
+
+def _portion_rows(product_id: UUID, portions: list[tuple[str, float, bool]]) -> list[ProductPortion]:
+    rows, default_taken = [], False
+    for name, grams, is_default in portions:
+        is_default = is_default and not default_taken  # partial unique index: one default
+        default_taken = default_taken or is_default
+        rows.append(ProductPortion(product_id=product_id, name=name[:100], grams=grams, is_default=is_default))
+    return rows
+
+
+@router.post("/{meal_id}/convert-to-product", response_model=ProductOut, status_code=status.HTTP_201_CREATED)
+async def convert_to_product(
+    meal_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Create a library product (brand "From custom meal") from the meal's
+    current per-100g nutrition and portions, so the meal can be used as an
+    ingredient of other meals. A frozen copy: use sync-product to refresh it."""
+    meal = await _get_owned_meal(db, meal_id, current_user)
+    existing = await _get_linked_product(db, meal)
+    if existing is not None:
+        raise api_error(status.HTTP_409_CONFLICT, "already_converted", product_id=str(existing.id))
+    values = await _meal_product_values(db, meal)
+    product = Product(
+        user_id=current_user.id,
+        name=meal.name,
+        brand=CUSTOM_MEAL_BRAND,
+        notes=meal.description,
+        source=CUSTOM_MEAL_SOURCE,
+        source_meal_id=meal.id,
+        **values["macros"],
+    )
+    db.add(product)
+    await db.flush()
+    await _apply_nutrients(db, product.id, values["nutrients"])
+    db.add_all(_portion_rows(product.id, values["portions"]))
+    await db.commit()
+    await db.refresh(product)
+    await _hydrate(db, [product])
+    return product
+
+
+@router.post("/{meal_id}/sync-product", response_model=ProductOut)
+async def sync_product(
+    meal_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Refresh the linked product's nutrition and portions from the meal.
+    Name, notes, groups and favourite are left as the user set them. Meals that
+    use the product follow the new values; log entries stay frozen."""
+    meal = await _get_owned_meal(db, meal_id, current_user)
+    product = await _get_linked_product(db, meal)
+    if product is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No product linked to this meal")
+    values = await _meal_product_values(db, meal)
+    if any(i.product_id == product.id for i in meal.ingredients):
+        raise api_error(status.HTTP_400_BAD_REQUEST, "circular_ingredient")
+
+    for field, value in values["macros"].items():
+        setattr(product, field, value)
+    existing = (
+        await db.execute(select(ProductNutrient.nutrient_code).where(ProductNutrient.product_id == product.id))
+    ).scalars().all()
+    desired: dict[str, float | None] = {code: None for code in existing}  # None deletes stale codes
+    desired.update(values["nutrients"])
+    await _apply_nutrients(db, product.id, desired)
+    await db.execute(delete(ProductPortion).where(ProductPortion.product_id == product.id))
+    await db.flush()
+    db.add_all(_portion_rows(product.id, values["portions"]))
+    await db.commit()
+    await db.refresh(product)
+    await _hydrate(db, [product])
+    return product

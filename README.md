@@ -310,7 +310,8 @@ sugar         NUMERIC        -- per 100g
 salt          NUMERIC        -- per 100g
 saturated_fat NUMERIC        -- per 100g (EU-mandatory, so a typed column)
 notes         TEXT
-source        TEXT           -- 'manual' | 'ai_scan' | 'ai_chat' | 'catalog'
+source        TEXT           -- 'manual' | 'ai_scan' | 'ai_chat' | 'catalog' | 'custom_meal'
+source_meal_id UUID FK → meals.id (SET NULL)  -- set when created by converting a meal (brand "From custom meal")
 is_favorite   BOOLEAN NOT NULL DEFAULT false
 created_at    TIMESTAMPTZ DEFAULT now()
 updated_at    TIMESTAMPTZ DEFAULT now()
@@ -571,6 +572,10 @@ GET    /meals/:id/portions       List named portions for a meal
 POST   /meals/:id/portions       Create a named portion
 PATCH  /meals/:id/portions/:id   Update a named portion (name, grams, is_default)
 DELETE /meals/:id/portions/:id   Delete a named portion
+
+POST   /meals/:id/convert-to-product   Create a product (brand "From custom meal", source 'custom_meal') from the meal's per-100g nutrition + portions. 409 already_converted if a live linked product exists; 400 meal_has_no_ingredients / meal_has_no_weight
+POST   /meals/:id/sync-product         Re-copy nutrition + portions onto the linked product (name/notes/groups/favourite untouched). 404 if none; 400 circular_ingredient. Meals following that product pick up the new values; log entries stay frozen
+                                       (meal detail exposes linked_product_id; a meal can't use its own product → 400 circular_ingredient)
 
 POST   /meals/:id/ingredients                  Add an ingredient (linked: {product_id, input_amount, input_unit} or unlinked: {name, brand, macros, input_amount, input_unit})
 PATCH  /meals/:id/ingredients/:id              Edit values directly (name/brand/macros/grams) — on a followed ingredient this switches it to its own values; sending `product_id` (same or different product) makes it follow that product again
@@ -886,6 +891,7 @@ Deferred, later TODO. Blocked on enrolling in the Apple Developer Program (neede
 - [x] Backend OFF client (User-Agent, barcode lookup, search) with a barcode-keyed Postgres cache, rate limiter and circuit breaker (migration 0018)
 - [x] `GET /catalog/search?q=` + `GET /catalog/barcode/:code` + `POST /catalog/import`
 - [x] "Search public catalog" and "Scan barcode" entry points in Add Product; OFF attribution in search, draft card, product detail and Profile
+- [x] Convert a meal into a library product ("From custom meal") so it can be an ingredient of other meals, with manual re-sync (`products.source_meal_id`, migration 0020; `POST /meals/:id/convert-to-product` + `/sync-product`; button on the meal screen)
 - [ ] Barcode → catalog lookup ahead of Claude Vision in the Phase 6 scan flow *(barcode scan + catalog lookup shipped; the Claude Vision fallback hook is `onScanLabelWithAI` on `LookupOutcomePanel`)*
 - [ ] (Optional) opt-in "Share to Open Food Facts" for user-created barcoded products
 
