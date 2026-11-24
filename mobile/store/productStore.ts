@@ -27,6 +27,8 @@ export interface Product {
   serving_unit: string | null;
   notes: string | null;
   source: string | null;
+  // Set for products created by converting a meal (source = 'custom_meal').
+  source_meal_id: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
